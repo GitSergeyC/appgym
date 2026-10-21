@@ -185,10 +185,12 @@ body{margin:0}
     <summary>Правила</summary>
     <ul>
       <li>Разминка 7–10 минут кардио. Отдых между подходами 1,5–2 минуты.</li>
-      <li>Вес на недели 3–4 повышай, только если в прошлый раз сделал все 4 подхода с полными повторами и чистой техникой.</li>
+      <li>Вес повышай, только если в прошлый раз сделал все подходы с полными повторами и чистой техникой.</li>
+      <li>Поясница: никаких наклонов с весом, вертикальной нагрузки на позвоночник, прыжков и скручиваний с весом.</li>
+      <li>Плечи: любое упражнение — только в безболевой амплитуде. Если болит, уменьши вес или глубину, а не терпи.</li>
       <li>В поле «Повторы» пиши по подходам, например: 10 10 9 8. Если везде полные — галочка.</li>
       <li>Гравитрон: чем меньше противовес, тем тяжелее.</li>
-      <li>Плечи: в жимах и махах лучше недобрать вес, чем терять технику.</li>
+      
       <li>После тренировки 10–15 минут кардио.</li>
     </ul>
   </details>
@@ -349,45 +351,61 @@ body{margin:0}
   <button id="tbtn" type="button">Отдых</button>
 </div>
 <script>
+// Программа v2: с учётом плеч и поясничного остеохондроза
+// w12/w34 — цели на недели; "" — вес подобрать; bw — без веса; assist — противовес (меньше = тяжелее)
+const X=(id,n,sch,w12,w34,note,o)=>Object.assign({id,n,sch,w12,w34,note},o||{});
 const PLAN={
   A:{name:"А",sub:"ноги · спина · грудь",ex:[
-    ["Жим ногами","4×10","160","165–170","25.09 нога болела после 160 — не повышай, пока не пройдёт"],
-    ["Подтягивания в гравитроне","4×10","55","50","Противовес: меньше = тяжелее"],
-    ["Жим сидя на грудь","4×10","55","57,5–60"],
-    ["Протяжка к груди","4×15","25","27,5"],
-    ["Косичка (трицепс)","4×12","12,5","15"],
-    ["Скамья Скотта","4×12","20","22,5"]]},
-  B:{name:"Б",sub:"бедро · спина · плечи",ex:[
-    ["Разгибание / сгибание бедра","4×10","40 / 35","45 / 40"],
-    ["Горизонтальная тяга сидя","4×10","35","40"],
-    ["Бабочка","4×10","20","22,5"],
-    ["Махи в стороны","4×12","7,5","7,5–8"],
-    ["Прямая рукоять на трицепс","4×10","15","17,5"],
-    ["Молотки","4×10","7,5","8–10"]]},
-  C:{name:"В",sub:"бёрпи · спина · руки",ex:[
-    ["Бёрпи","4×20","—","—"],
-    ["Вертикальная тяга","4×10","40","45"],
-    ["Жим гантелей лёжа","4×10","12,5","14"],
-    ["Махи на переднюю дельту","4×12","5","6"],
-    ["Гантели на бицепс","4×10","10","12"],
-    ["Французский жим гантелями","4×12","5","6"]]}
+    X("legpress","Жим ногами","4×10","160","165–170","Поясница всё время прижата к спинке. Опускай, пока таз не начинает подкручиваться"),
+    X("gravitron","Подтягивания в гравитроне","4×10","55","50","Противовес: меньше = тяжелее",{assist:true}),
+    X("chestpress","Жим сидя на грудь","4×10","55","57,5–60","Только в безболевой амплитуде"),
+    X("latpull","Протяжка к груди","4×15","25","27,5"),
+    X("rope","Косичка (трицепс)","4×12","12,5","15"),
+    X("scott","Скамья Скотта","4×12","20","22,5"),
+    X("calves","Подъёмы на носки","3×15","","","В тренажёре сидя или на платформе жима ногами"),
+    X("deadbug","Мёртвый жук","3×10","","","На каждую сторону. Поясница прижата к полу",{bw:true})]},
+  B:{name:"Б",sub:"бедро · ягодицы · спина",ex:[
+    X("legext","Разгибание / сгибание бедра","4×10","40 / 35","45 / 40"),
+    X("hrow","Горизонтальная тяга сидя","4×10","35","40","Спина ровная, без раскачки"),
+    X("fly","Бабочка","4×10","20","22,5","Не разводи руки за линию плеч"),
+    X("lateral","Махи в стороны","4×12","7,5","7,5","Лёгкие, до уровня плеч и не выше"),
+    X("glutebridge","Ягодичный мостик","3×12","","","С гантелью на тазу или в тренажёре. Спина на скамье"),
+    X("hyperext","Гиперэкстензия без веса","3×12–15","","","Подъём только до прямой линии тела, без прогиба назад",{bw:true}),
+    X("hammer","Молотки","4×10","7,5","8–10"),
+    X("birddog","Птица-собака","3×10","","","На каждую сторону, медленно, корпус не качается",{bw:true})]},
+  C:{name:"В",sub:"ноги · спина · плечи",ex:[
+    X("bulgarian","Болгарские выпады","3×10","","","На каждую ногу, лёгкие гантели. Если отдаёт в поясницу — жим ногами одной ногой"),
+    X("vrow","Вертикальная тяга","4×10","40","45"),
+    X("dbpress","Жим гантелей лёжа","4×10","12,5","14","Только в безболевой амплитуде"),
+    X("facepull","Тяга каната к лицу","3×15","","","Локти высоко, в конце сведи лопатки"),
+    X("extrot","Вращение плеча наружу","2×15","","","Резинка или блок, очень лёгкий вес, локоть прижат"),
+    X("curl","Гантели на бицепс","4×10","10","12"),
+    X("french","Французский жим гантелями","4×12","5","6"),
+    X("sideplank","Боковая планка","3×30","","","Секунды на каждую сторону",{bw:true})]}
 };
+// упражнения из старой программы: остаются в истории
+const RETIRED={straightbar:"Прямая рукоять на трицепс",burpee:"Бёрпи",frontraise:"Махи на переднюю дельту"};
+const OLDMAP={A:["legpress","gravitron","chestpress","latpull","rope","scott"],B:["legext","hrow","fly","lateral","straightbar","hammer"],C:["burpee","vrow","dbpress","frontraise","curl","french"]};
 const KEY="sergey-gym-v1";
 let S={};
 try{S=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){S={}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function migrateE(e){const o={};for(const k in e||{}){const m=k.match(/^([ABC])-(\d+)-(\d)$/);
+  if(m&&OLDMAP[m[1]][+m[2]])o[OLDMAP[m[1]][+m[2]]+"-"+m[3]]=e[k];else o[k]=e[k]}return o}
+if((S.v||1)<2){if(S.e)S.e=migrateE(S.e);(S.hist||[]).forEach(h=>h.e=migrateE(h.e));S.v=2;save()}
 let tab="A";try{tab=localStorage.getItem(KEY+"-tab")||"A"}catch(e){}
 if(!PLAN[tab])tab="A";
 
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 const esc0=t=>String(t).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 // подсказка веса: прошлая неделя этого месяца, иначе последний месяц из истории
-function prevW(t,ei,w){
-  for(let x=w-1;x>=1;x--){const d=S.e&&S.e[t+"-"+ei+"-"+x];if(d&&d.w)return d.w}
+function prevW(id,w){
+  for(let x=w-1;x>=1;x--){const d=S.e&&S.e[id+"-"+x];if(d&&d.w)return d.w}
   const H=S.hist||[];
-  for(let h=H.length-1;h>=0;h--)for(let x=4;x>=1;x--){const d=H[h].e&&H[h].e[t+"-"+ei+"-"+x];if(d&&d.w)return d.w}
+  for(let h=H.length-1;h>=0;h--)for(let x=4;x>=1;x--){const d=H[h].e&&H[h].e[id+"-"+x];if(d&&d.w)return d.w}
   return "";
 }
+function repsHint(sch){const m=String(sch).match(/(\d+)\s*×\s*(\d+)/);return m?Array(+m[1]).fill(m[2]).join(" "):""}
 function renderGrid(){
   const g=document.getElementById("grid12");g.innerHTML="";
   const order=["А","Б","В"];let n=0;
@@ -415,17 +433,17 @@ function renderTabs(){
 function renderList(){
   const L=document.getElementById("list");L.innerHTML="";
   PLAN[tab].ex.forEach((e,ei)=>{
-    const [name,scheme,w12,w34,note]=e;
     const card=document.createElement("article");card.className="ex";
-    let h='<div class="ex-head"><div class="ex-name">'+(ei+1)+". "+name+'</div><div class="scheme">'+scheme+"</div></div>";
-    if(w12!=="—")h+='<div class="targets">Цель: <span>нед 1–2 · '+w12+' кг</span><span>нед 3–4 · '+w34+" кг</span></div>";
-    if(note)h+='<div class="note">'+note+"</div>";
-    h+='<div class="weeks"><div class="h">Нед</div><div class="h">Вес, кг</div><div class="h">Повторы</div><div class="h">✓</div>';
+    let h='<div class="ex-head"><div class="ex-name">'+(ei+1)+". "+e.n+'</div><div class="scheme">'+e.sch+"</div></div>";
+    if(e.w12)h+='<div class="targets">Цель: <span>нед 1–2 · '+e.w12+' кг</span><span>нед 3–4 · '+e.w34+" кг</span></div>";
+    else if(!e.bw)h+='<div class="targets"><span>Вес подбери: последние повторы тяжёлые, техника чистая</span></div>';
+    if(e.note)h+='<div class="note">'+e.note+"</div>";
+    h+='<div class="weeks"><div class="h">Нед</div><div class="h">'+(e.bw?"":"Вес, кг")+'</div><div class="h">Повторы</div><div class="h">✓</div>';
     for(let w=1;w<=4;w++){
-      const id=tab+"-"+ei+"-"+w;const d=(S.e&&S.e[id])||{};
+      const id=e.id+"-"+w;const d=(S.e&&S.e[id])||{};
       h+='<div class="wk">'+w+'</div>'+
-        '<input type="text" inputmode="decimal" id="w-'+id+'" data-k="'+id+'" data-f="w" aria-label="Неделя '+w+', вес" placeholder="'+esc0(prevW(tab,ei,w)||(w<=2?w12:w34))+'" value="'+(d.w||"").replace(/"/g,"&quot;")+'">'+
-        '<input type="text" id="r-'+id+'" data-k="'+id+'" data-f="r" aria-label="Неделя '+w+', повторы" placeholder="10 10 10 10" value="'+(d.r||"").replace(/"/g,"&quot;")+'">'+
+        (e.bw?'<div></div>':'<input type="text" inputmode="decimal" id="w-'+id+'" data-k="'+id+'" data-f="w" aria-label="Неделя '+w+', вес" placeholder="'+esc0(prevW(e.id,w)||(w<=2?e.w12:e.w34)||"кг")+'" value="'+esc0(d.w||"")+'">')+
+        '<input type="text" id="r-'+id+'" data-k="'+id+'" data-f="r" aria-label="Неделя '+w+', повторы" placeholder="'+repsHint(e.sch)+'" value="'+esc0(d.r||"")+'">'+
         '<input type="checkbox" id="c-'+id+'" data-k="'+id+'" data-f="c" aria-label="Неделя '+w+', всё выполнено"'+(d.c?" checked":"")+'>';
     }
     h+="</div>";card.innerHTML=h;L.appendChild(card);
