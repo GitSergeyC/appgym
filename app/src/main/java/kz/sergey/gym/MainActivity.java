@@ -1,6 +1,19 @@
 package kz.sergey.gym;
 
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.media.MediaMetadata;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
+import android.net.Uri;
+import android.provider.Settings;
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import java.util.List;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -40,6 +53,107 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void keepScreenOn(final boolean on) {
             runOnUiThread(() -> web.setKeepScreenOn(on));
+        }
+
+
+        private String artCacheKey = null, artCacheVal = null;
+
+        private boolean hasMusicPerm() {
+            String s = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+            return s != null && s.contains(getPackageName());
+        }
+
+        private MediaController controller() {
+            MediaSessionManager m = (MediaSessionManager) getSystemService(MEDIA_SESSION_SERVICE);
+            List<MediaController> list = m.getActiveSessions(new ComponentName(MainActivity.this, MusicListener.class));
+            if (list == null || list.isEmpty()) return null;
+            for (MediaController c : list) {
+                PlaybackState ps = c.getPlaybackState();
+                if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) return c;
+            }
+            return list.get(0);
+        }
+
+        @JavascriptInterface
+        public String musicState() {
+            JSONObject o = new JSONObject();
+            try {
+                boolean perm = hasMusicPerm();
+                o.put("perm", perm);
+                if (!perm) return o.toString();
+                MediaController c = controller();
+                o.put("has", c != null);
+                if (c == null) return o.toString();
+                PlaybackState ps = c.getPlaybackState();
+                o.put("playing", ps != null && ps.getState() == PlaybackState.STATE_PLAYING);
+                PackageManager pm = getPackageManager();
+                try { o.put("app", pm.getApplicationLabel(pm.getApplicationInfo(c.getPackageName(), 0)).toString()); }
+                catch (Exception ignored) { o.put("app", c.getPackageName()); }
+                MediaMetadata md = c.getMetadata();
+                if (md != null) {
+                    String title = md.getString(MediaMetadata.METADATA_KEY_TITLE);
+                    String artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST);
+                    if (artist == null) artist = md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+                    o.put("title", title == null ? "" : title);
+                    o.put("artist", artist == null ? "" : artist);
+                    String key = c.getPackageName() + "|" + title;
+                    if (!key.equals(artCacheKey)) {
+                        artCacheKey = key;
+                        artCacheVal = null;
+                        Bitmap b = md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+                        if (b == null) b = md.getBitmap(MediaMetadata.METADATA_KEY_ART);
+                        if (b == null) b = md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+                        if (b != null) {
+                            Bitmap sm = Bitmap.createScaledBitmap(b, 96, 96, true);
+                            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                            sm.compress(Bitmap.CompressFormat.JPEG, 75, bo);
+                            artCacheVal = "data:image/jpeg;base64," + Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+                        }
+                    }
+                    if (artCacheVal != null) o.put("art", artCacheVal);
+                }
+            } catch (Exception e) {
+                try { o.put("error", String.valueOf(e.getMessage())); } catch (Exception ignored) { }
+            }
+            return o.toString();
+        }
+
+        @JavascriptInterface
+        public void musicCmd(String cmd) {
+            try {
+                if (!hasMusicPerm()) return;
+                MediaController c = controller();
+                if (c == null) return;
+                MediaController.TransportControls t = c.getTransportControls();
+                PlaybackState ps = c.getPlaybackState();
+                boolean playing = ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
+                switch (cmd) {
+                    case "toggle": if (playing) t.pause(); else t.play(); break;
+                    case "next": t.skipToNext(); break;
+                    case "prev": t.skipToPrevious(); break;
+                }
+            } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public void openMusicPermission() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
+                catch (Exception e) { startActivity(new Intent(Settings.ACTION_SETTINGS)); }
+            });
+        }
+
+        @JavascriptInterface
+        public void openApp(final String pkg) {
+            runOnUiThread(() -> {
+                Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i == null) {
+                    i = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + pkg));
+                }
+                try { startActivity(i); } catch (Exception e) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + pkg)));
+                }
+            });
         }
 
         @JavascriptInterface

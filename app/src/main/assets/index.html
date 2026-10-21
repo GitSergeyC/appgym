@@ -49,12 +49,12 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .foot{font-size:13px;color:var(--muted)}
 .reset{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;font:13px var(--body);cursor:pointer}
 @media (prefers-reduced-motion:no-preference){.grid12 button,.tabs button{transition:background .15s,border-color .15s}}
-.timer{position:fixed;right:16px;bottom:16px;display:flex;gap:6px;align-items:center;z-index:20}
+.timer{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + var(--mb,0px) + env(safe-area-inset-bottom,0px));display:flex;gap:6px;align-items:center;z-index:20}
 .timer button{border:none;border-radius:999px;background:var(--accent);color:var(--bg);font:600 16px var(--display);padding:14px 18px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;font-variant-numeric:tabular-nums}
 .timer button.alt{background:var(--surface);color:var(--fg);border:1px solid var(--line);padding:14px 14px}
 .timer button.done{background:var(--ok)}
 .nav{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
-.nav button{flex:1;border:none;background:none;color:var(--muted);font:600 15px var(--display);letter-spacing:.04em;text-transform:uppercase;padding:10px;border-radius:7px;cursor:pointer}
+.nav button{flex:1;border:none;background:none;color:var(--muted);font:600 13px var(--display);letter-spacing:0;text-transform:uppercase;padding:10px 2px;white-space:nowrap;min-width:0;border-radius:7px;cursor:pointer}
 .nav button[aria-selected="true"]{background:var(--accent);color:var(--bg)}
 .page{display:flex;flex-direction:column;gap:20px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
@@ -116,7 +116,43 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .msum b{display:block;font:600 18px var(--display);color:var(--fg);font-variant-numeric:tabular-nums}
 .danger{color:var(--warn)!important;border-color:var(--warn)!important}
 .res .bc{color:var(--muted);font-size:12px;margin-left:6px}
-.wrap{padding-bottom:96px}
+/* мини-плеер */
+.mbar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding-block:8px calc(8px + env(safe-area-inset-bottom,0px));padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:8px}
+.mrow{display:flex;align-items:center;gap:10px;max-width:760px;width:100%;margin:0 auto}
+.mart{width:44px;height:44px;border-radius:6px;background:var(--accent-soft);flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:20px}
+.minfo{flex:1;min-width:0;border:none;background:none;color:var(--fg);text-align:left;padding:0;cursor:pointer;font:inherit}
+.minfo b,.minfo span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.minfo b{font-size:14px} .minfo span{font-size:12px;color:var(--muted)}
+.mbtn{width:42px;height:42px;border:none;border-radius:50%;background:none;color:var(--fg);cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
+.mbtn svg{width:22px;height:22px;fill:currentColor}
+.mbtn.main{background:var(--accent);color:var(--bg)}
+.mapps{display:flex;gap:6px;max-width:760px;width:100%;margin:0 auto;flex-wrap:wrap}
+.mapps button{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:9px 4px;font:600 13px var(--body);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mhint{font-size:12px;color:var(--muted);max-width:760px;margin:0 auto;width:100%}
+/* прогресс */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.kpi b{display:block;font:600 26px var(--display);font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips span{background:var(--accent-soft);border-radius:6px;padding:3px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+.chips span.nodate{background:var(--bg);color:var(--muted)}
+.prow{display:grid;grid-template-columns:1fr 96px 74px;gap:10px;align-items:center;padding-block:8px;border-top:1px solid var(--line);font-size:14px}
+.prow:first-of-type{border-top:none}
+.prow .nm{min-width:0}
+.prow .nm small{display:block;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.prow svg{width:96px;height:32px;overflow:visible}
+.spark{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.sparkdot{fill:var(--accent)}
+.delta{text-align:right;font:600 15px var(--display);font-variant-numeric:tabular-nums}
+.delta.up{color:var(--ok)} .delta.down{color:var(--warn)} .delta.flat{color:var(--muted)}
+.tbars{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end;height:140px}
+.tbar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tbar i{display:block;width:100%;max-width:56px;background:var(--accent);border-radius:5px 5px 0 0;min-height:2px}
+.tbar b{color:var(--fg);font-weight:600}
+.comp{display:grid;grid-template-columns:110px 1fr 52px;gap:10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
+.sec{display:flex;flex-direction:column;gap:10px}
+.wrap{padding-bottom:calc(110px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
 </style>
@@ -124,9 +160,10 @@ body{margin:0}
 </head><body>
 <div class="wrap">
   <div class="nav" role="tablist">
-    <button type="button" role="tab" id="navTrain" aria-selected="true">Тренировки</button>
+    <button type="button" role="tab" id="navTrain" aria-selected="true">Зал</button>
     <button type="button" role="tab" id="navFood" aria-selected="false">Питание</button>
     <button type="button" role="tab" id="navBase" aria-selected="false">База</button>
+    <button type="button" role="tab" id="navStats" aria-selected="false">Прогресс</button>
   </div>
 <div class="page" id="pageTrain">
   <header>
@@ -138,6 +175,7 @@ body{margin:0}
     <div class="label">Тренировки месяца — отмечай после каждой</div>
     <div class="grid12" id="grid12"></div>
     <div class="count" id="count"></div>
+    <div class="foot"><button class="reset" id="newMonth" type="button">Начать новый месяц</button> <span id="nmMsg"></span></div>
   </section>
 
   <div class="tabs" role="tablist" id="tabs"></div>
@@ -165,6 +203,18 @@ body{margin:0}
   </details>
 
   <div class="foot">Записи хранятся на телефоне. <button class="reset" id="reset" type="button">Очистить тренировки</button> <span id="resetMsg"></span></div>
+</div>
+
+<div class="page" id="pageStats" hidden>
+  <header>
+    <h1>Прогресс</h1>
+    <p class="sub">Посещения, выполнение и рабочие веса</p>
+  </header>
+  <div class="kpis" id="stKpi"></div>
+  <section class="card"><div class="label">Посещения</div><div class="chips" id="stDates"></div></section>
+  <section class="card"><div class="label">Выполнение по тренировкам</div><div class="sec" id="stComp"></div></section>
+  <section class="card"><div class="label">Тоннаж за неделю, кг</div><div class="muted">Вес × повторы по всем упражнениям месяца</div><div class="tbars" id="stTon"></div></section>
+  <section class="card"><div class="label">Рабочие веса</div><div class="muted">Все записи по порядку, включая прошлые месяцы</div><div id="stEx"></div></section>
 </div>
 
 <div class="page" id="pageBase" hidden>
@@ -278,6 +328,22 @@ body{margin:0}
 </div>
 </div>
 
+<div class="mbar" id="mbar" hidden>
+  <div class="mrow">
+    <div class="mart" id="mArt" aria-hidden="true">♪</div>
+    <button class="minfo" id="mInfo" type="button" aria-expanded="false"><b id="mTitle">Музыка</b><span id="mSub">Нажми, чтобы открыть плееры</span></button>
+    <button class="mbtn" id="mPrev" type="button" aria-label="Предыдущий трек"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+    <button class="mbtn main" id="mPlay" type="button" aria-label="Пауза или воспроизведение"><svg viewBox="0 0 24 24" id="mPlayIco"><path d="M8 5v14l11-7z"/></svg></button>
+    <button class="mbtn" id="mNext" type="button" aria-label="Следующий трек"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+  </div>
+  <div class="mapps" id="mApps" hidden>
+    <button type="button" data-pkg="ru.yandex.music">Яндекс Музыка</button>
+    <button type="button" data-pkg="com.google.android.youtube">YouTube</button>
+    <button type="button" data-pkg="com.google.android.apps.youtube.music">YT Music</button>
+  </div>
+  <div class="mhint" id="mHint" hidden></div>
+</div>
+
 <div class="timer" id="timer" aria-live="polite">
   <button class="alt" id="tmode" type="button" aria-label="Длина отдыха">1:30</button>
   <button id="tbtn" type="button">Отдых</button>
@@ -313,15 +379,24 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let tab="A";try{tab=localStorage.getItem(KEY+"-tab")||"A"}catch(e){}
 if(!PLAN[tab])tab="A";
 
+function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+const esc0=t=>String(t).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+// подсказка веса: прошлая неделя этого месяца, иначе последний месяц из истории
+function prevW(t,ei,w){
+  for(let x=w-1;x>=1;x--){const d=S.e&&S.e[t+"-"+ei+"-"+x];if(d&&d.w)return d.w}
+  const H=S.hist||[];
+  for(let h=H.length-1;h>=0;h--)for(let x=4;x>=1;x--){const d=H[h].e&&H[h].e[t+"-"+ei+"-"+x];if(d&&d.w)return d.w}
+  return "";
+}
 function renderGrid(){
   const g=document.getElementById("grid12");g.innerHTML="";
   const order=["А","Б","В"];let n=0;
   for(let i=0;i<12;i++){
     const b=document.createElement("button");b.type="button";
-    const on=!!(S.s&&S.s[i]);if(on)n++;
+    const on=!!(S.s&&S.s[i]);if(on)n++;if(on&&typeof S.s[i]==="string")b.title=S.s[i];
     b.className=on?"on":"";b.textContent=order[i%3];
     b.setAttribute("aria-pressed",on);b.setAttribute("aria-label","Тренировка "+(i+1)+", "+order[i%3]);
-    b.onclick=()=>{S.s=S.s||{};S.s[i]=!S.s[i];save();renderGrid()};
+    b.onclick=()=>{S.s=S.s||{};if(S.s[i])delete S.s[i];else S.s[i]=todayKey();save();renderGrid()};
     g.appendChild(b);
   }
   const next=n<12?" · следующая: "+order[n%3]:" · месяц закрыт";
@@ -349,7 +424,7 @@ function renderList(){
     for(let w=1;w<=4;w++){
       const id=tab+"-"+ei+"-"+w;const d=(S.e&&S.e[id])||{};
       h+='<div class="wk">'+w+'</div>'+
-        '<input type="text" inputmode="decimal" id="w-'+id+'" data-k="'+id+'" data-f="w" aria-label="Неделя '+w+', вес" placeholder="'+(w<=2?w12:w34)+'" value="'+(d.w||"").replace(/"/g,"&quot;")+'">'+
+        '<input type="text" inputmode="decimal" id="w-'+id+'" data-k="'+id+'" data-f="w" aria-label="Неделя '+w+', вес" placeholder="'+esc0(prevW(tab,ei,w)||(w<=2?w12:w34))+'" value="'+(d.w||"").replace(/"/g,"&quot;")+'">'+
         '<input type="text" id="r-'+id+'" data-k="'+id+'" data-f="r" aria-label="Неделя '+w+', повторы" placeholder="10 10 10 10" value="'+(d.r||"").replace(/"/g,"&quot;")+'">'+
         '<input type="checkbox" id="c-'+id+'" data-k="'+id+'" data-f="c" aria-label="Неделя '+w+', всё выполнено"'+(d.c?" checked":"")+'>';
     }
@@ -366,6 +441,13 @@ document.getElementById("reset").onclick=()=>{
   const m=document.getElementById("resetMsg");
   if(!armed){armed=true;m.textContent="Нажми ещё раз, чтобы стереть записи";setTimeout(()=>{armed=false;m.textContent=""},4000);return}
   delete S.s;delete S.e;save();armed=false;m.textContent="Записи тренировок стёрты";renderGrid();renderList();
+};
+let nmArmed=false;
+document.getElementById("newMonth").onclick=()=>{
+  const m=document.getElementById("nmMsg");
+  if(!nmArmed){nmArmed=true;m.textContent="Нажми ещё раз: текущий месяц уйдёт в историю, отметки и поля очистятся";setTimeout(()=>{nmArmed=false;m.textContent=""},5000);return}
+  nmArmed=false;S.hist=S.hist||[];S.hist.push({end:todayKey(),s:S.s||{},e:S.e||{}});S.s={};S.e={};save();
+  m.textContent="Новый месяц начат. Подсказки в полях — твои последние веса.";renderGrid();renderList();
 };
 renderGrid();renderTabs();renderList();
 window.saveNow=save;
@@ -388,4 +470,6 @@ tb.onclick=()=>{
 };
 </script>
 <script src="food.js"></script>
+<script src="stats.js"></script>
+<script src="music.js"></script>
 </body></html>

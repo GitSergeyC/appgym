@@ -61,16 +61,16 @@ function totals(key){const t={k:0,p:0,f:0,c:0,n:0};(S.food[key]||[]).forEach(e=>
 const status=k=>{const g=goalK();return k>g*1.1?"hi":k>=g*0.9?"ok":"lo"};
 
 // навигация
-const PAGES={train:["pageTrain","navTrain"],food:["pageFood","navFood"],base:["pageBase","navBase"]};
+const PAGES={train:["pageTrain","navTrain"],food:["pageFood","navFood"],base:["pageBase","navBase"],stats:["pageStats","navStats"]};
 function showPage(name){
   if(!PAGES[name])name="train";
   for(const k in PAGES){$(PAGES[k][0]).hidden=k!==name;$(PAGES[k][1]).setAttribute("aria-selected",k===name)}
   $("timer").hidden=name!=="train";
   try{localStorage.setItem(KEY+"-page",name)}catch(e){}
-  if(name==="food")renderFood();if(name==="base")renderBase();
+  if(name==="food")renderFood();if(name==="base")renderBase();if(name==="stats"&&window.renderStats)renderStats();
   window.scrollTo(0,0);
 }
-$("navTrain").onclick=()=>showPage("train");$("navFood").onclick=()=>showPage("food");$("navBase").onclick=()=>showPage("base");
+$("navTrain").onclick=()=>showPage("train");$("navFood").onclick=()=>showPage("food");$("navBase").onclick=()=>showPage("base");$("navStats").onclick=()=>showPage("stats");
 $("dPrev").onclick=()=>{day.setDate(day.getDate()-1);calM=new Date(day);renderFood()};
 $("dNext").onclick=()=>{day.setDate(day.getDate()+1);calM=new Date(day);renderFood()};
 
@@ -256,4 +256,4 @@ window.onLookup=(code,text)=>{
 
 let startPage="train";try{startPage=localStorage.getItem(KEY+"-page")||"train"}catch(e){}
 if(startPage==="false")startPage="train";if(startPage==="true")startPage="food";
-showPage(startPage);
+window.addEventListener("DOMContentLoaded",()=>showPage(startPage));
