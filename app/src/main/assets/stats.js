@@ -63,5 +63,28 @@ window.renderStats=function(){
   let old="";for(const id in (S.names||{}))if(!inPlan.has(id))old+=row({t:S.names[id],retired:true},id,false);
   if(old)h+='<div class="msg" style="margin-top:8px">Убранные из программы</div>'+old;
   $("stEx").innerHTML=h;
+  renderStepStats(true);
+};
+
+// шаги: последние 30 дней, недостающие дни подтягиваются из Health Connect
+const hc=!!(window.Android&&Android.steps);
+window.renderStepStats=function(fetch){
+  const now=new Date();now.setHours(12,0,0,0);
+  const days=[];for(let i=29;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days.push(dkey(d))}
+  if(fetch&&hc)days.forEach((k,i)=>{if(S.steps[k]==null||i>=28)try{Android.steps(k)}catch(e){}});
+  const val=k=>S.steps[k];
+  const have=days.filter(k=>val(k)!=null);
+  const avg=a=>a.length?r0(a.reduce((s,k)=>s+val(k),0)/a.length):null;
+  const last7=days.slice(-7).filter(k=>val(k)!=null);
+  const best=have.reduce((b,k)=>b==null||val(k)>val(b)?k:b,null);
+  const f=x=>x==null?"—":x.toLocaleString("ru-RU");
+  $("stStepK").innerHTML=[[f(avg(last7)),"в среднем за 7 дней"],[f(avg(have)),"в среднем за 30 дней"],
+    [best?f(val(best)):"—",best?"рекорд, "+fmtD(best):"рекорд"],[have.filter(k=>val(k)>=10000).length,"дней от 10 000"]]
+    .map(([a,b])=>'<div class="kpi"><b>'+a+"</b><span>"+b+"</span></div>").join("");
+  const d14=days.slice(-14),mx=Math.max(1,...d14.map(k=>val(k)||0));
+  $("stSteps").innerHTML=d14.map((k,i)=>{const v=val(k)||0;
+    return '<div class="'+(i===13?"today":"")+'" title="'+fmtD(k)+": "+f(v)+'"><i class="'+(v<5000?"lo":"")+'" style="height:'+(v/mx*85)+'%"></i>'+(+k.slice(8))+"</div>"}).join("");
+  $("stStepMsg").textContent=have.length?"Последние 14 дней. Серые столбики — меньше 5000 шагов.":
+    hc?"Пока нет данных. Подключи шаги на экране «Питание», и история подтянется из Health Connect.":"Пока нет данных: шаги можно вписывать на экране «Питание».";
 };
 })();

@@ -28,6 +28,7 @@ window.onSteps=(d,n)=>{
   state=n;
   if(n>=0){S.steps[d]=n;save()}
   if(d===dkey(day))renderEnergy();
+  if(!$("pageStats").hidden&&window.renderStepStats){clearTimeout(window._sst);window._sst=setTimeout(renderStepStats,300)}
 };
 window.onStepsPerm=()=>request();
 window.onAppResume=()=>{if(!$("pageFood").hidden)request()};

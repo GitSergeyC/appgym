@@ -166,6 +166,11 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .edbtns button:disabled{opacity:.3}
 .chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--fg)}
 .chk input{width:20px;height:20px;accent-color:var(--accent);margin:0}
+.sbars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:3px;align-items:end;height:110px}
+.sbars div{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:3px;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sbars i{display:block;width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px}
+.sbars i.lo{background:var(--line)}
+.sbars div.today{color:var(--fg);font-weight:600}
 .wrap{padding-bottom:calc(110px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -231,6 +236,8 @@ body{margin:0}
   <section class="card"><div class="label">Посещения</div><div class="chips" id="stDates"></div></section>
   <section class="card"><div class="label">Выполнение по тренировкам</div><div class="sec" id="stComp"></div></section>
   <section class="card"><div class="label">Тоннаж за неделю, кг</div><div class="muted">Вес × повторы по всем упражнениям месяца</div><div class="tbars" id="stTon"></div></section>
+  <section class="card"><div class="label">Шаги</div><div class="kpis" id="stStepK"></div>
+    <div class="sbars" id="stSteps"></div><div class="msg" id="stStepMsg"></div></section>
   <section class="card"><div class="label">Рабочие веса</div><div class="muted">Все записи по порядку, включая прошлые месяцы</div><div id="stEx"></div></section>
 </div>
 
@@ -415,7 +422,7 @@ const DEFAULT_PLAN={
     X("hammer","Молотки","4×10","7,5","8–10"),
     X("birddog","Птица-собака","3×10","","","На каждую сторону, медленно, корпус не качается",{bw:true})]},
   C:{name:"В",sub:"ноги · спина · плечи",ex:[
-    X("bulgarian","Болгарские выпады","3×10","","","На каждую ногу, лёгкие гантели. Если отдаёт в поясницу — жим ногами одной ногой"),
+    X("lunge","Выпады назад","3×10","","","На каждую ногу, лёгкие гантели. Шаг назад, корпус прямой, колено передней ноги над стопой"),
     X("vrow","Вертикальная тяга","4×10","40","45"),
     X("dbpress","Жим гантелей лёжа","4×10","12,5","14","Только в безболевой амплитуде"),
     X("facepull","Тяга каната к лицу","3×15","","","Локти высоко, в конце сведи лопатки"),
@@ -437,6 +444,8 @@ if((S.v||1)<2){if(S.e)S.e=migrateE(S.e);(S.hist||[]).forEach(h=>h.e=migrateE(h.e
 // программа хранится у пользователя и редактируется
 if(!S.plan){S.plan=JSON.parse(JSON.stringify(DEFAULT_PLAN));save()}
 let PLAN=S.plan;
+if((S.v||2)<3){const L=DEFAULT_PLAN.C.ex.find(e=>e.id==="lunge");
+  for(const k in PLAN)PLAN[k].ex=PLAN[k].ex.map(e=>e.id==="bulgarian"?Object.assign({},L):e);S.v=3;save()}
 function syncNames(){S.names=S.names||{};for(const id in RETIRED)if(!S.names[id])S.names[id]=RETIRED[id];
   for(const k in PLAN)PLAN[k].ex.forEach(e=>S.names[e.id]=e.n)}
 syncNames();
