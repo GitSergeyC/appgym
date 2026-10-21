@@ -1,0 +1,210 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Зал</title>
+<style>
+/* Layout: журнал зала — счётчик 12 тренировок сверху, вкладки А/Б/В, карточка упражнения = строка недель с полями ввода */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#16202a; --muted:#5d6b78; --line:#d9e0e6;
+  --accent:#1f5fa8; --accent-soft:#e3edf8; --ok:#2e7d4f; --warn:#a8641f;
+  --display:"Roboto Condensed","Arial Narrow",sans-serif-condensed,sans-serif; --body:Roboto,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --surface:#1a2129; --fg:#e6ecf1; --muted:#93a1ae; --line:#2b3540;
+  --accent:#6aa6e8; --accent-soft:#1d2d40; --ok:#6cc792; --warn:#e0a463; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --surface:#1a2129; --fg:#e6ecf1; --muted:#93a1ae; --line:#2b3540;
+  --accent:#6aa6e8; --accent-soft:#1d2d40; --ok:#6cc792; --warn:#e0a463; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:760px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--display);font-weight:600;font-size:28px;letter-spacing:.01em;margin:0;text-transform:uppercase;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;font-size:14px}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.sessions{display:flex;flex-direction:column;gap:8px}
+.grid12{display:grid;grid-template-columns:repeat(12,1fr);gap:4px}
+.grid12 button{aspect-ratio:1;max-width:100%;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);border-radius:6px;font:600 13px var(--display);cursor:pointer;padding:0}
+.grid12 button.on{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.grid12 button:focus-visible,.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{font-variant-numeric:tabular-nums;font-size:14px}
+@media (max-width:480px){.grid12{grid-template-columns:repeat(6,1fr)}}
+.tabs{display:flex;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding-block:8px;z-index:5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.tabs button{flex:1;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:10px 6px;font:600 16px var(--display);letter-spacing:.03em;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.tabs small{display:block;font:500 11px var(--body);letter-spacing:0;opacity:.8;margin-top:2px}
+.list{display:flex;flex-direction:column;gap:12px}
+.ex{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ex-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ex-name{font-weight:600;font-size:16px;min-width:0}
+.scheme{font:500 15px var(--display);color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+.targets{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.targets span{background:var(--accent-soft);border-radius:5px;padding:2px 8px;color:var(--fg);font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--warn)}
+.weeks{display:grid;grid-template-columns:auto 1fr 1.6fr auto;gap:6px 8px;align-items:center}
+.weeks .h{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.wk{font:500 14px var(--display);color:var(--muted)}
+.weeks input[type=text]{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:7px 8px;font:15px var(--body);font-variant-numeric:tabular-nums}
+.weeks input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.weeks input[type=checkbox]{width:22px;height:22px;accent-color:var(--ok);margin:0}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+summary{font:600 16px var(--display);letter-spacing:.02em;text-transform:uppercase;cursor:pointer}
+details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+.foot{font-size:13px;color:var(--muted)}
+.reset{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;font:13px var(--body);cursor:pointer}
+@media (prefers-reduced-motion:no-preference){.grid12 button,.tabs button{transition:background .15s,border-color .15s}}
+.timer{position:fixed;right:16px;bottom:16px;display:flex;gap:6px;align-items:center;z-index:20}
+.timer button{border:none;border-radius:999px;background:var(--accent);color:var(--bg);font:600 16px var(--display);padding:14px 18px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;font-variant-numeric:tabular-nums}
+.timer button.alt{background:var(--surface);color:var(--fg);border:1px solid var(--line);padding:14px 14px}
+.timer button.done{background:var(--ok)}
+.wrap{padding-bottom:96px}
+body{margin:0}
+</style>
+
+</head><body>
+<div class="wrap">
+  <header>
+    <h1>Дневник тренировок</h1>
+    <p class="sub">Сергей · программа тренера, 12 тренировок на месяц · порядок А → Б → В</p>
+  </header>
+
+  <section class="sessions" aria-label="Пройденные тренировки">
+    <div class="label">Тренировки месяца — отмечай после каждой</div>
+    <div class="grid12" id="grid12"></div>
+    <div class="count" id="count"></div>
+  </section>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="list" id="list"></div>
+
+  <details>
+    <summary>Правила</summary>
+    <ul>
+      <li>Разминка 7–10 минут кардио. Отдых между подходами 1,5–2 минуты.</li>
+      <li>Вес на недели 3–4 повышай, только если в прошлый раз сделал все 4 подхода с полными повторами и чистой техникой.</li>
+      <li>В поле «Повторы» пиши по подходам, например: 10 10 9 8. Если везде полные — галочка.</li>
+      <li>Гравитрон: чем меньше противовес, тем тяжелее.</li>
+      <li>Плечи: в жимах и махах лучше недобрать вес, чем терять технику.</li>
+      <li>После тренировки 10–15 минут кардио.</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>Питание</summary>
+    <ul>
+      <li>Последние цифры от тренера под набор: белки 180 г, жиры 60 г, углеводы 240 г.</li>
+      <li>Соль до 8 г в день. Клетчатка: ложка в день или больше овощей.</li>
+      <li>Крупы и мясо взвешивать в сыром виде.</li>
+    </ul>
+  </details>
+
+  <div class="foot">Записи хранятся на телефоне. <button class="reset" id="reset" type="button">Очистить всё</button> <span id="resetMsg"></span></div>
+</div>
+
+<div class="timer" aria-live="polite">
+  <button class="alt" id="tmode" type="button" aria-label="Длина отдыха">1:30</button>
+  <button id="tbtn" type="button">Отдых</button>
+</div>
+<script>
+const PLAN={
+  A:{name:"А",sub:"ноги · спина · грудь",ex:[
+    ["Жим ногами","4×10","160","165–170","25.09 нога болела после 160 — не повышай, пока не пройдёт"],
+    ["Подтягивания в гравитроне","4×10","55","50","Противовес: меньше = тяжелее"],
+    ["Жим сидя на грудь","4×10","55","57,5–60"],
+    ["Протяжка к груди","4×15","25","27,5"],
+    ["Косичка (трицепс)","4×12","12,5","15"],
+    ["Скамья Скотта","4×12","20","22,5"]]},
+  B:{name:"Б",sub:"бедро · спина · плечи",ex:[
+    ["Разгибание / сгибание бедра","4×10","40 / 35","45 / 40"],
+    ["Горизонтальная тяга сидя","4×10","35","40"],
+    ["Бабочка","4×10","20","22,5"],
+    ["Махи в стороны","4×12","7,5","7,5–8"],
+    ["Прямая рукоять на трицепс","4×10","15","17,5"],
+    ["Молотки","4×10","7,5","8–10"]]},
+  C:{name:"В",sub:"бёрпи · спина · руки",ex:[
+    ["Бёрпи","4×20","—","—"],
+    ["Вертикальная тяга","4×10","40","45"],
+    ["Жим гантелей лёжа","4×10","12,5","14"],
+    ["Махи на переднюю дельту","4×12","5","6"],
+    ["Гантели на бицепс","4×10","10","12"],
+    ["Французский жим гантелями","4×12","5","6"]]}
+};
+const KEY="sergey-gym-v1";
+let S={};
+try{S=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){S={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+let tab="A";try{tab=localStorage.getItem(KEY+"-tab")||"A"}catch(e){}
+if(!PLAN[tab])tab="A";
+
+function renderGrid(){
+  const g=document.getElementById("grid12");g.innerHTML="";
+  const order=["А","Б","В"];let n=0;
+  for(let i=0;i<12;i++){
+    const b=document.createElement("button");b.type="button";
+    const on=!!(S.s&&S.s[i]);if(on)n++;
+    b.className=on?"on":"";b.textContent=order[i%3];
+    b.setAttribute("aria-pressed",on);b.setAttribute("aria-label","Тренировка "+(i+1)+", "+order[i%3]);
+    b.onclick=()=>{S.s=S.s||{};S.s[i]=!S.s[i];save();renderGrid()};
+    g.appendChild(b);
+  }
+  const next=n<12?" · следующая: "+order[n%3]:" · месяц закрыт";
+  document.getElementById("count").textContent="Сделано "+n+" из 12"+next;
+}
+function renderTabs(){
+  const t=document.getElementById("tabs");t.innerHTML="";
+  for(const k of Object.keys(PLAN)){
+    const b=document.createElement("button");b.type="button";b.setAttribute("role","tab");
+    b.setAttribute("aria-selected",k===tab);
+    b.innerHTML="Тренировка "+PLAN[k].name+"<small>"+PLAN[k].sub+"</small>";
+    b.onclick=()=>{tab=k;try{localStorage.setItem(KEY+"-tab",k)}catch(e){};renderTabs();renderList()};
+    t.appendChild(b);
+  }
+}
+function renderList(){
+  const L=document.getElementById("list");L.innerHTML="";
+  PLAN[tab].ex.forEach((e,ei)=>{
+    const [name,scheme,w12,w34,note]=e;
+    const card=document.createElement("article");card.className="ex";
+    let h='<div class="ex-head"><div class="ex-name">'+(ei+1)+". "+name+'</div><div class="scheme">'+scheme+"</div></div>";
+    if(w12!=="—")h+='<div class="targets">Цель: <span>нед 1–2 · '+w12+' кг</span><span>нед 3–4 · '+w34+" кг</span></div>";
+    if(note)h+='<div class="note">'+note+"</div>";
+    h+='<div class="weeks"><div class="h">Нед</div><div class="h">Вес, кг</div><div class="h">Повторы</div><div class="h">✓</div>';
+    for(let w=1;w<=4;w++){
+      const id=tab+"-"+ei+"-"+w;const d=(S.e&&S.e[id])||{};
+      h+='<div class="wk">'+w+'</div>'+
+        '<input type="text" inputmode="decimal" id="w-'+id+'" data-k="'+id+'" data-f="w" aria-label="Неделя '+w+', вес" placeholder="'+(w<=2?w12:w34)+'" value="'+(d.w||"").replace(/"/g,"&quot;")+'">'+
+        '<input type="text" id="r-'+id+'" data-k="'+id+'" data-f="r" aria-label="Неделя '+w+', повторы" placeholder="10 10 10 10" value="'+(d.r||"").replace(/"/g,"&quot;")+'">'+
+        '<input type="checkbox" id="c-'+id+'" data-k="'+id+'" data-f="c" aria-label="Неделя '+w+', всё выполнено"'+(d.c?" checked":"")+'>';
+    }
+    h+="</div>";card.innerHTML=h;L.appendChild(card);
+  });
+}
+document.getElementById("list").addEventListener("input",ev=>{
+  const el=ev.target;if(!el.dataset.k)return;
+  S.e=S.e||{};const d=S.e[el.dataset.k]=S.e[el.dataset.k]||{};
+  d[el.dataset.f]=el.type==="checkbox"?el.checked:el.value;save();
+});
+let armed=false;
+document.getElementById("reset").onclick=()=>{
+  const m=document.getElementById("resetMsg");
+  if(!armed){armed=true;m.textContent="Нажми ещё раз, чтобы стереть записи";setTimeout(()=>{armed=false;m.textContent=""},4000);return}
+  S={};save();armed=false;m.textContent="Записи стёрты";renderGrid();renderList();
+};
+renderGrid();renderTabs();renderList();
+window.saveNow=save;
+// таймер отдыха
+const modes=[90,120,60];let mi=0,end=0,tick=null;
+const tb=document.getElementById("tbtn"),tm=document.getElementById("tmode");
+const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+function buzz(ms){try{window.Android?Android.vibrate(ms):navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+function screen(on){try{window.Android&&Android.keepScreenOn(on)}catch(e){}}
+function stop(label){clearInterval(tick);tick=null;tb.textContent=label;screen(false)}
+tm.onclick=()=>{if(tick)return;mi=(mi+1)%modes.length;tm.textContent=fmt(modes[mi])};
+tb.onclick=()=>{
+  tb.classList.remove("done");
+  if(tick){stop("Отдых");return}
+  end=Date.now()+modes[mi]*1000;screen(true);
+  const step=()=>{const left=Math.max(0,Math.round((end-Date.now())/1000));
+    tb.textContent=fmt(left);
+    if(left===0){stop("Подход!");tb.classList.add("done");buzz(800)}};
+  step();tick=setInterval(step,250);
+};
+</script>
+
+</body></html>
