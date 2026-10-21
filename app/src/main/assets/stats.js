@@ -1,6 +1,6 @@
 // Прогресс: посещения, выполнение, тоннаж, рабочие веса
 (function(){
-const TABS=["A","B","C"],LET={A:"А",B:"Б",C:"В"};
+const TABS0=()=>Object.keys(PLAN);
 
 const months=()=>(S.hist||[]).concat([{s:S.s||{},e:S.e||{},cur:true}]);
 const repsOf=(d,scheme)=>{
@@ -13,21 +13,22 @@ const fmtD=k=>{const [y,m,d]=k.split("-").map(Number);return new Date(y,m-1,d).t
 const fmtN=x=>r0(x).toLocaleString("ru-RU");
 
 window.renderStats=function(){
+  const TABS=TABS0(),LET={};TABS.forEach(k=>LET[k]=PLAN[k].name);const ord=order();
   const M=months();
   // посещения
   let dated=[],undated=0;
   M.forEach(mo=>Object.keys(mo.s).forEach(i=>{const v=mo.s[i];if(!v)return;
-    if(typeof v==="string")dated.push({d:v,t:["А","Б","В"][i%3]});else undated++}));
+    if(typeof v==="string")dated.push({d:v,t:ord[i%ord.length]});else undated++}));
   dated.sort((a,b)=>a.d<b.d?1:-1);
   const total=dated.length+undated;
-  const cur=Object.values(S.s||{}).filter(Boolean).length;
+  const cur=Object.values(S.s||{}).filter(Boolean).length,N=slots();
   const since=new Date();since.setDate(since.getDate()-28);const sk=dkey(since);
   const perWeek=dated.filter(x=>x.d>=sk).length/4;
   // выполнение текущего месяца
   let fillAll=0,doneAll=0;const comp={};
   TABS.forEach(t=>{let f=0,d=0;PLAN[t].ex.forEach(e=>{for(let w=1;w<=4;w++){const x=(S.e||{})[e.id+"-"+w];
     if(x&&(x.w||x.r||x.c)){f++;if(x.c)d++}}});comp[t]={f,d};fillAll+=f;doneAll+=d});
-  $("stKpi").innerHTML=[[cur+" из 12","тренировок в этом месяце"],[total,"тренировок всего"],
+  $("stKpi").innerHTML=[[cur+" из "+N,"тренировок в этом месяце"],[total,"тренировок всего"],
     [String(Math.round(perWeek*10)/10).replace(".",","),"в неделю за последние 4 недели"],
     [fillAll?Math.round(doneAll/fillAll*100)+"%":"—","подходов выполнено полностью"]]
     .map(([a,b])=>'<div class="kpi"><b>'+a+"</b><span>"+b+"</span></div>").join("");
@@ -58,8 +59,9 @@ window.renderStats=function(){
   };
   let h="";
   TABS.forEach(t=>PLAN[t].ex.forEach(e=>{if(!e.bw)h+=row({t:LET[t]+" · "+e.n},e.id,e.assist)}));
-  let old="";for(const id in RETIRED)old+=row({t:RETIRED[id],retired:true},id,false);
-  if(old)h+='<div class="msg" style="margin-top:8px">Из прежней программы</div>'+old;
+  const inPlan=new Set();TABS.forEach(t=>PLAN[t].ex.forEach(e=>inPlan.add(e.id)));
+  let old="";for(const id in (S.names||{}))if(!inPlan.has(id))old+=row({t:S.names[id],retired:true},id,false);
+  if(old)h+='<div class="msg" style="margin-top:8px">Убранные из программы</div>'+old;
   $("stEx").innerHTML=h;
 };
 })();

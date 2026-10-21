@@ -152,6 +152,20 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .tbar b{color:var(--fg);font-weight:600}
 .comp{display:grid;grid-template-columns:110px 1fr 52px;gap:10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
 .sec{display:flex;flex-direction:column;gap:10px}
+.ehead{display:flex;justify-content:space-between;gap:12px}
+.steps{font:600 28px var(--display);font-variant-numeric:tabular-nums;line-height:1.1}
+.ebreak{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bal{font-size:15px;font-variant-numeric:tabular-nums;border-top:1px solid var(--line);padding-top:8px}
+.bal b{font:600 18px var(--display)}
+.bal .minus,.bal .plus{color:var(--accent)}
+.edrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.edrow .nm{min-width:0}
+.edrow .nm small{display:block;color:var(--muted);font-size:12px}
+.edbtns{display:flex;gap:4px}
+.edbtns button{width:38px;height:38px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;font:600 16px var(--body);cursor:pointer}
+.edbtns button:disabled{opacity:.3}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--fg)}
+.chk input{width:20px;height:20px;accent-color:var(--accent);margin:0}
 .wrap{padding-bottom:calc(110px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -168,7 +182,7 @@ body{margin:0}
 <div class="page" id="pageTrain">
   <header>
     <h1>Дневник тренировок</h1>
-    <p class="sub">12 тренировок на месяц · порядок А → Б → В</p>
+    <p class="sub" id="trainSub"></p>
   </header>
 
   <section class="sessions" aria-label="Пройденные тренировки">
@@ -179,6 +193,7 @@ body{margin:0}
   </section>
 
   <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="pickrow" style="flex-wrap:wrap"><button class="btn ghost" id="editBtn" type="button">Изменить программу</button></div>
   <div class="list" id="list"></div>
 
   <details>
@@ -274,6 +289,17 @@ body{margin:0}
     <div id="macros" style="display:flex;flex-direction:column;gap:8px"></div>
   </section>
 
+  <section class="card" id="energy" aria-label="Шаги и расход">
+    <div class="ehead">
+      <div><div class="label">Шаги</div><div class="steps" id="stepsN">—</div></div>
+      <div style="text-align:right"><div class="label">Расход за день</div><div class="steps" id="burnN">—</div></div>
+    </div>
+    <div class="msg" id="stepsMsg" hidden></div>
+    <button class="btn ghost" id="stepsBtn" type="button" hidden>Подключить шаги</button>
+    <div class="ebreak" id="burnBreak"></div>
+    <div class="bal" id="balance"></div>
+  </section>
+
   <section class="card">
     <div class="label">Добавить</div>
     <div class="addrow">
@@ -318,6 +344,21 @@ body{margin:0}
   </section>
 
   <details>
+    <summary>Профиль для расчёта расхода</summary>
+    <div class="fgrid" style="margin-top:10px">
+      <label>Вес, кг<input class="inp" id="prW" type="text" inputmode="decimal"></label>
+      <label>Рост, см<input class="inp" id="prH" type="text" inputmode="decimal"></label>
+      <label>Возраст<input class="inp" id="prA" type="text" inputmode="numeric"></label>
+      <label>Пол<select class="inp" id="prS"><option value="m">муж</option><option value="f">жен</option></select></label>
+    </div>
+    <div class="fgrid" style="grid-template-columns:1fr 1fr;margin-top:8px">
+      <label>Ккал за тренировку<input class="inp" id="prT" type="text" inputmode="numeric"></label>
+      <label>Шагов уже в базе<input class="inp" id="prB" type="text" inputmode="numeric"></label>
+    </div>
+    <p class="muted">Базовый обмен считается по формуле Миффлина — Сан Жеора и умножается на 1,2 (сидячий день, в нём уже есть около 3000 шагов). Шаги сверх этого добавляются отдельно: длина шага ≈ 0,415 × рост, расход ≈ 0,5 ккал на кг веса за километр. Тренировка добавляется в день, когда она отмечена на вкладке «Зал».</p>
+  </details>
+
+  <details>
     <summary>Цели КБЖУ</summary>
     <div class="fgrid" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
       <label>Белки, г<input class="inp" id="gP" type="text" inputmode="decimal"></label>
@@ -354,7 +395,7 @@ body{margin:0}
 // Программа v2: с учётом плеч и поясничного остеохондроза
 // w12/w34 — цели на недели; "" — вес подобрать; bw — без веса; assist — противовес (меньше = тяжелее)
 const X=(id,n,sch,w12,w34,note,o)=>Object.assign({id,n,sch,w12,w34,note},o||{});
-const PLAN={
+const DEFAULT_PLAN={
   A:{name:"А",sub:"ноги · спина · грудь",ex:[
     X("legpress","Жим ногами","4×10","160","165–170","Поясница всё время прижата к спинке. Опускай, пока таз не начинает подкручиваться"),
     X("gravitron","Подтягивания в гравитроне","4×10","55","50","Противовес: меньше = тяжелее",{assist:true}),
@@ -393,8 +434,16 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function migrateE(e){const o={};for(const k in e||{}){const m=k.match(/^([ABC])-(\d+)-(\d)$/);
   if(m&&OLDMAP[m[1]][+m[2]])o[OLDMAP[m[1]][+m[2]]+"-"+m[3]]=e[k];else o[k]=e[k]}return o}
 if((S.v||1)<2){if(S.e)S.e=migrateE(S.e);(S.hist||[]).forEach(h=>h.e=migrateE(h.e));S.v=2;save()}
+// программа хранится у пользователя и редактируется
+if(!S.plan){S.plan=JSON.parse(JSON.stringify(DEFAULT_PLAN));save()}
+let PLAN=S.plan;
+function syncNames(){S.names=S.names||{};for(const id in RETIRED)if(!S.names[id])S.names[id]=RETIRED[id];
+  for(const k in PLAN)PLAN[k].ex.forEach(e=>S.names[e.id]=e.n)}
+syncNames();
+const order=()=>Object.keys(PLAN).map(k=>PLAN[k].name);
+const slots=()=>Object.keys(PLAN).length*4;
 let tab="A";try{tab=localStorage.getItem(KEY+"-tab")||"A"}catch(e){}
-if(!PLAN[tab])tab="A";
+if(!PLAN[tab])tab=Object.keys(PLAN)[0];
 
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 const esc0=t=>String(t).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
@@ -408,17 +457,17 @@ function prevW(id,w){
 function repsHint(sch){const m=String(sch).match(/(\d+)\s*×\s*(\d+)/);return m?Array(+m[1]).fill(m[2]).join(" "):""}
 function renderGrid(){
   const g=document.getElementById("grid12");g.innerHTML="";
-  const order=["А","Б","В"];let n=0;
-  for(let i=0;i<12;i++){
+  const ord=order(),N=slots();let n=0;
+  for(let i=0;i<N;i++){
     const b=document.createElement("button");b.type="button";
     const on=!!(S.s&&S.s[i]);if(on)n++;if(on&&typeof S.s[i]==="string")b.title=S.s[i];
-    b.className=on?"on":"";b.textContent=order[i%3];
-    b.setAttribute("aria-pressed",on);b.setAttribute("aria-label","Тренировка "+(i+1)+", "+order[i%3]);
+    b.className=on?"on":"";b.textContent=ord[i%ord.length];
+    b.setAttribute("aria-pressed",on);b.setAttribute("aria-label","Тренировка "+(i+1)+", "+ord[i%ord.length]);
     b.onclick=()=>{S.s=S.s||{};if(S.s[i])delete S.s[i];else S.s[i]=todayKey();save();renderGrid()};
     g.appendChild(b);
   }
-  const next=n<12?" · следующая: "+order[n%3]:" · месяц закрыт";
-  document.getElementById("count").textContent="Сделано "+n+" из 12"+next;
+  const next=n<N?" · следующая: "+ord[n%ord.length]:" · месяц закрыт";
+  document.getElementById("count").textContent="Сделано "+n+" из "+N+next;
 }
 function renderTabs(){
   const t=document.getElementById("tabs");t.innerHTML="";
@@ -432,6 +481,7 @@ function renderTabs(){
 }
 function renderList(){
   const L=document.getElementById("list");L.innerHTML="";
+  if(window.editMode&&window.renderEditor){renderEditor(L);return}
   PLAN[tab].ex.forEach((e,ei)=>{
     const card=document.createElement("article");card.className="ex";
     let h='<div class="ex-head"><div class="ex-name">'+(ei+1)+". "+e.n+'</div><div class="scheme">'+e.sch+"</div></div>";
@@ -490,4 +540,6 @@ tb.onclick=()=>{
 <script src="food.js"></script>
 <script src="stats.js"></script>
 <script src="music.js"></script>
+<script src="editor.js"></script>
+<script src="energy.js"></script>
 </body></html>

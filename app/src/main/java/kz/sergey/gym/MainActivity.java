@@ -156,6 +156,29 @@ public class MainActivity extends Activity {
             });
         }
 
+
+        @JavascriptInterface
+        public void steps(final String date) {
+            StepsHelper.read(MainActivity.this, date, (d, n) -> js("onSteps(" + JSONObject.quote(d) + "," + n + ")"));
+        }
+
+        @JavascriptInterface
+        public void stepsConnect() {
+            runOnUiThread(() -> {
+                try {
+                    if (StepsHelper.status(MainActivity.this) == 3) {
+                        startActivityForResult(StepsHelper.permissionIntent(MainActivity.this), 77);
+                        return;
+                    }
+                } catch (Exception ignored) { }
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding")));
+                } catch (Exception e) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")));
+                }
+            });
+        }
+
         @JavascriptInterface
         public void scan() {
             runOnUiThread(() -> {
@@ -227,6 +250,18 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == 77) js("window.onStepsPerm&&onStepsPerm()");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (web != null) js("window.onAppResume&&onAppResume()");
+    }
 
     @Override
     protected void onPause() { super.onPause(); web.evaluateJavascript("window.saveNow&&saveNow()", null); }

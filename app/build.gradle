@@ -1,13 +1,16 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 android {
     namespace 'kz.sergey.gym'
-    compileSdk 34
+    compileSdk 35
     defaultConfig {
         applicationId 'kz.sergey.gym'
-        minSdk 24
+        minSdk 26
         targetSdk 34
-        versionCode 5
-        versionName '1.4'
+        versionCode 6
+        versionName '1.5'
     }
     signingConfigs {
         fixed {
@@ -21,7 +24,10 @@ android {
         debug { signingConfig signingConfigs.fixed }
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = '17' }
 }
 dependencies {
     implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+    implementation 'androidx.health.connect:connect-client:1.1.0-alpha11'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 }
