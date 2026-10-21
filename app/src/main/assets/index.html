@@ -53,15 +53,62 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .timer button{border:none;border-radius:999px;background:var(--accent);color:var(--bg);font:600 16px var(--display);padding:14px 18px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;font-variant-numeric:tabular-nums}
 .timer button.alt{background:var(--surface);color:var(--fg);border:1px solid var(--line);padding:14px 14px}
 .timer button.done{background:var(--ok)}
+.nav{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
+.nav button{flex:1;border:none;background:none;color:var(--muted);font:600 15px var(--display);letter-spacing:.04em;text-transform:uppercase;padding:10px;border-radius:7px;cursor:pointer}
+.nav button[aria-selected="true"]{background:var(--accent);color:var(--bg)}
+.page{display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.daybar{display:flex;align-items:center;gap:8px}
+.daybar button{width:44px;height:40px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;font:600 20px var(--display);cursor:pointer}
+.daybar div{flex:1;text-align:center;font:600 18px var(--display);letter-spacing:.02em}
+.kcal{font:600 34px var(--display);font-variant-numeric:tabular-nums;line-height:1}
+.kcal small{font:500 15px var(--body);color:var(--muted)}
+.muted{color:var(--muted);font-size:14px}
+.over{color:var(--warn)}
+.macro{display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--accent-soft);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.bar i.full{background:var(--ok)} .bar i.overfill{background:var(--warn)}
+.row{display:grid;grid-template-columns:1fr 64px 52px 32px;gap:8px;align-items:center;padding-block:6px;border-top:1px solid var(--line);font-size:14px}
+.row:first-of-type{border-top:none}
+.row .nm{min-width:0;overflow-wrap:anywhere}
+.row .nm small{display:block;color:var(--muted);font-size:12px}
+.row .kc{text-align:right;font-variant-numeric:tabular-nums}
+.row .del{border:none;background:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0}
+.inp{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:9px 10px;font:15px var(--body);font-variant-numeric:tabular-nums}
+.inp:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.row .inp{padding:6px;text-align:right}
+.addrow{display:flex;gap:8px}
+.btn{border:none;background:var(--accent);color:var(--bg);border-radius:8px;padding:10px 14px;font:600 15px var(--body);cursor:pointer;white-space:nowrap}
+.btn.ghost{background:var(--surface);color:var(--fg);border:1px solid var(--line)}
+.btn:focus-visible,.nav button:focus-visible,.res button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.res{display:flex;flex-direction:column}
+.res button{display:flex;justify-content:space-between;gap:10px;text-align:left;border:none;border-top:1px solid var(--line);background:none;color:var(--fg);padding:10px 2px;font:15px var(--body);cursor:pointer}
+.res button span:last-child{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.res .tag{color:var(--accent);font-size:12px;margin-left:6px}
+.pick{background:var(--accent-soft);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.pick .ttl{font-weight:600}
+.pickrow{display:flex;gap:8px;align-items:center}
+.pickrow .inp{max-width:110px}
+.fgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.fgrid label,.fl{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.msg{font-size:13px;color:var(--muted)}
+.linkbtn{align-self:flex-start;border:none;background:none;color:var(--accent);font:600 15px var(--body);padding:4px 0;cursor:pointer}
 .wrap{padding-bottom:96px}
 body{margin:0}
+[hidden]{display:none!important}
 </style>
 
 </head><body>
 <div class="wrap">
+  <div class="nav" role="tablist">
+    <button type="button" role="tab" id="navTrain" aria-selected="true">Тренировки</button>
+    <button type="button" role="tab" id="navFood" aria-selected="false">Питание</button>
+  </div>
+<div class="page" id="pageTrain">
   <header>
     <h1>Дневник тренировок</h1>
-    <p class="sub">Сергей · программа тренера, 12 тренировок на месяц · порядок А → Б → В</p>
+    <p class="sub">12 тренировок на месяц · порядок А → Б → В</p>
   </header>
 
   <section class="sessions" aria-label="Пройденные тренировки">
@@ -94,10 +141,79 @@ body{margin:0}
     </ul>
   </details>
 
-  <div class="foot">Записи хранятся на телефоне. <button class="reset" id="reset" type="button">Очистить всё</button> <span id="resetMsg"></span></div>
+  <div class="foot">Записи хранятся на телефоне. <button class="reset" id="reset" type="button">Очистить тренировки</button> <span id="resetMsg"></span></div>
 </div>
 
-<div class="timer" aria-live="polite">
+<div class="page" id="pageFood" hidden>
+  <div class="daybar">
+    <button type="button" id="dPrev" aria-label="Предыдущий день">‹</button>
+    <div id="dLabel"></div>
+    <button type="button" id="dNext" aria-label="Следующий день">›</button>
+  </div>
+
+  <section class="card" aria-label="Итог дня">
+    <div class="kcal"><span id="kEat">0</span> <small>из <span id="kGoal">0</span> ккал</small></div>
+    <div class="muted" id="kLeft"></div>
+    <div id="macros" style="display:flex;flex-direction:column;gap:8px"></div>
+  </section>
+
+  <section class="card">
+    <div class="label">Добавить</div>
+    <div class="addrow">
+      <input class="inp" id="q" type="search" placeholder="Поиск: курица, рис, творог…" autocomplete="off">
+      <button class="btn" id="scanBtn" type="button" hidden>Штрихкод</button>
+    </div>
+    <div class="msg" id="scanMsg" hidden></div>
+    <div class="pick" id="pick" hidden>
+      <div class="ttl" id="pickName"></div>
+      <div class="pickrow">
+        <input class="inp" id="pickG" type="text" inputmode="decimal" aria-label="Граммы">
+        <span class="muted">г</span>
+        <span class="muted" id="pickPrev"></span>
+      </div>
+      <div class="pickrow">
+        <button class="btn" id="pickAdd" type="button">Добавить</button>
+        <button class="btn ghost" id="pickCancel" type="button">Отмена</button>
+      </div>
+    </div>
+    <div class="res" id="results"></div>
+    <button class="linkbtn" id="newBtn" type="button">+ Свой продукт</button>
+    <form id="prodForm" class="pick" hidden>
+      <div class="msg" id="formMsg"></div>
+      <label class="fl">Название<input class="inp" id="fName" type="text" required></label>
+      <div class="muted">На 100 г:</div>
+      <div class="fgrid">
+        <label>Ккал<input class="inp" id="fK" type="text" inputmode="decimal"></label>
+        <label>Белки<input class="inp" id="fP" type="text" inputmode="decimal"></label>
+        <label>Жиры<input class="inp" id="fF" type="text" inputmode="decimal"></label>
+        <label>Углев.<input class="inp" id="fC" type="text" inputmode="decimal"></label>
+      </div>
+      <div class="pickrow">
+        <button class="btn" type="submit">Сохранить</button>
+        <button class="btn ghost" id="fCancel" type="button">Отмена</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="label">Съедено за день</div>
+    <div id="eaten"></div>
+  </section>
+
+  <details>
+    <summary>Цели КБЖУ</summary>
+    <div class="fgrid" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+      <label>Белки, г<input class="inp" id="gP" type="text" inputmode="decimal"></label>
+      <label>Жиры, г<input class="inp" id="gF" type="text" inputmode="decimal"></label>
+      <label>Углеводы, г<input class="inp" id="gC" type="text" inputmode="decimal"></label>
+    </div>
+    <p class="muted" id="gK"></p>
+    <p class="muted">Значения в базе — на 100 г сырого продукта, если не указано «варёный». Блюда с пометкой ≈ посчитаны примерно.</p>
+  </details>
+</div>
+</div>
+
+<div class="timer" id="timer" aria-live="polite">
   <button class="alt" id="tmode" type="button" aria-label="Длина отдыха">1:30</button>
   <button id="tbtn" type="button">Отдых</button>
 </div>
@@ -184,7 +300,7 @@ let armed=false;
 document.getElementById("reset").onclick=()=>{
   const m=document.getElementById("resetMsg");
   if(!armed){armed=true;m.textContent="Нажми ещё раз, чтобы стереть записи";setTimeout(()=>{armed=false;m.textContent=""},4000);return}
-  S={};save();armed=false;m.textContent="Записи стёрты";renderGrid();renderList();
+  delete S.s;delete S.e;save();armed=false;m.textContent="Записи тренировок стёрты";renderGrid();renderList();
 };
 renderGrid();renderTabs();renderList();
 window.saveNow=save;
@@ -206,5 +322,5 @@ tb.onclick=()=>{
   step();tick=setInterval(step,250);
 };
 </script>
-
+<script src="food.js"></script>
 </body></html>
