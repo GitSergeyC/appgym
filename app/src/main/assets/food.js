@@ -36,41 +36,75 @@ const FOOD=[
 ["Плов ≈",190,7,9,20],["Манты ≈",220,10,11,20],["Баурсаки ≈",410,7,22,47]
 ].map(a=>({n:a[0],k:a[1],p:a[2],f:a[3],c:a[4]}));
 
-S.food=S.food||{};S.custom=S.custom||[];S.recent=S.recent||[];S.lastG=S.lastG||{};
+S.food=S.food||{};S.recent=S.recent||[];S.lastG=S.lastG||{};
 S.goal=S.goal||{p:180,f:60,c:240};
+// своя база: стандартные продукты копируются один раз, дальше всё можно менять
+if(!S.base){const mine=S.custom||[];S.base=mine.concat(FOOD.filter(f=>!mine.some(c=>c.n===f.n)));delete S.custom;save()}
 const $=id=>document.getElementById(id);
 const esc=t=>String(t).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 const num=v=>{const x=parseFloat(String(v).replace(",","."));return isFinite(x)?x:0};
 const r0=x=>Math.round(x),r1=x=>Math.round(x*10)/10;
 const goalK=()=>r0(S.goal.p*4+S.goal.f*9+S.goal.c*4);
+const findByName=n=>S.base.find(x=>x.n===n);
+const macroLine=x=>r0(x.k)+" ккал · Б"+r1(x.p)+" Ж"+r1(x.f)+" У"+r1(x.c);
 
 let day=new Date();day.setHours(12,0,0,0);
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const todayNoon=()=>{const t=new Date();t.setHours(12,0,0,0);return t};
 function dayLabel(){
-  const t=new Date();t.setHours(12,0,0,0);const diff=Math.round((day-t)/864e5);
+  const diff=Math.round((day-todayNoon())/864e5);
   if(diff===0)return"Сегодня";if(diff===-1)return"Вчера";if(diff===1)return"Завтра";
   return day.toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"});
 }
 const entries=()=>S.food[dkey(day)]||(S.food[dkey(day)]=[]);
-const allFoods=()=>S.custom.map(x=>Object.assign({mine:true},x)).concat(FOOD);
-const findByName=n=>allFoods().find(x=>x.n===n);
+function totals(key){const t={k:0,p:0,f:0,c:0,n:0};(S.food[key]||[]).forEach(e=>{const m=e.g/100;t.k+=e.k*m;t.p+=e.p*m;t.f+=e.f*m;t.c+=e.c*m;t.n++});return t}
+const status=k=>{const g=goalK();return k>g*1.1?"hi":k>=g*0.9?"ok":"lo"};
 
 // навигация
-function showPage(food){
-  $("pageTrain").hidden=food;$("pageFood").hidden=!food;$("timer").hidden=food;
-  $("navTrain").setAttribute("aria-selected",!food);$("navFood").setAttribute("aria-selected",food);
-  try{localStorage.setItem(KEY+"-page",food?"food":"train")}catch(e){}
-  if(food)renderFood();
+const PAGES={train:["pageTrain","navTrain"],food:["pageFood","navFood"],base:["pageBase","navBase"]};
+function showPage(name){
+  if(!PAGES[name])name="train";
+  for(const k in PAGES){$(PAGES[k][0]).hidden=k!==name;$(PAGES[k][1]).setAttribute("aria-selected",k===name)}
+  $("timer").hidden=name!=="train";
+  try{localStorage.setItem(KEY+"-page",name)}catch(e){}
+  if(name==="food")renderFood();if(name==="base")renderBase();
+  window.scrollTo(0,0);
 }
-$("navTrain").onclick=()=>showPage(false);$("navFood").onclick=()=>showPage(true);
-$("dPrev").onclick=()=>{day.setDate(day.getDate()-1);renderFood()};
-$("dNext").onclick=()=>{day.setDate(day.getDate()+1);renderFood()};
+$("navTrain").onclick=()=>showPage("train");$("navFood").onclick=()=>showPage("food");$("navBase").onclick=()=>showPage("base");
+$("dPrev").onclick=()=>{day.setDate(day.getDate()-1);calM=new Date(day);renderFood()};
+$("dNext").onclick=()=>{day.setDate(day.getDate()+1);calM=new Date(day);renderFood()};
+
+// календарь
+let calM=new Date(day);
+$("dLabel").onclick=()=>{const c=$("cal");c.hidden=!c.hidden;$("dLabel").setAttribute("aria-expanded",!c.hidden);calM=new Date(day);if(!c.hidden)renderCal()};
+$("cPrev").onclick=()=>{calM.setDate(1);calM.setMonth(calM.getMonth()-1);renderCal()};
+$("cNext").onclick=()=>{calM.setDate(1);calM.setMonth(calM.getMonth()+1);renderCal()};
+function renderCal(){
+  const y=calM.getFullYear(),m=calM.getMonth();
+  $("cTitle").textContent=new Date(y,m,1).toLocaleDateString("ru-RU",{month:"long",year:"numeric"}).replace(" г.","");
+  const first=(new Date(y,m,1).getDay()+6)%7,n=new Date(y,m+1,0).getDate();
+  const tk=dkey(todayNoon()),sk=dkey(day),now=todayNoon();
+  let h=["пн","вт","ср","чт","пт","сб","вс"].map(d=>'<div class="wd">'+d+"</div>").join("");
+  for(let i=0;i<first;i++)h+="<div></div>";
+  let cnt=0,sk2={k:0,p:0,f:0,c:0},ok=0;
+  for(let d=1;d<=n;d++){
+    const dt=new Date(y,m,d,12),key=dkey(dt),t=totals(key);
+    let cls=[];if(t.n){cls.push(status(t.k));cnt++;sk2.k+=t.k;sk2.p+=t.p;sk2.f+=t.f;sk2.c+=t.c;if(status(t.k)==="ok")ok++}
+    if(key===tk)cls.push("today");if(key===sk)cls.push("sel");if(dt>now)cls.push("fut");
+    h+='<button type="button" class="'+cls.join(" ")+'" data-d="'+d+'" aria-label="'+d+(t.n?", "+r0(t.k)+" ккал":"")+'">'+d+'<small>'+(t.n?r0(t.k):"·")+"</small></button>";
+  }
+  $("cGrid").innerHTML=h;
+  $("cSum").innerHTML=cnt?[["Дней с записями",cnt],["В норме",ok+" из "+cnt],["Среднее, ккал",r0(sk2.k/cnt)],
+    ["Б / Ж / У в среднем",r0(sk2.p/cnt)+" / "+r0(sk2.f/cnt)+" / "+r0(sk2.c/cnt)]].map(([a,b])=>"<div><b>"+b+"</b>"+a+"</div>").join("")
+    :'<div style="grid-column:1/-1">В этом месяце записей нет.</div>';
+}
+$("cGrid").addEventListener("click",ev=>{const b=ev.target.closest("button");if(!b)return;
+  day=new Date(calM.getFullYear(),calM.getMonth(),+b.dataset.d,12);
+  $("cal").hidden=true;$("dLabel").setAttribute("aria-expanded","false");renderFood()});
 
 function renderFood(){
   $("dLabel").textContent=dayLabel();
-  const E=entries();let t={k:0,p:0,f:0,c:0};
-  E.forEach(e=>{const m=e.g/100;t.k+=e.k*m;t.p+=e.p*m;t.f+=e.f*m;t.c+=e.c*m});
-  const gk=goalK();
+  const E=entries(),t=totals(dkey(day)),gk=goalK();
   $("kEat").textContent=r0(t.k);$("kGoal").textContent=gk;
   const left=gk-t.k;
   $("kLeft").textContent=left>=0?"Осталось "+r0(left)+" ккал":"Перебор на "+r0(-left)+" ккал";
@@ -86,6 +120,7 @@ function renderFood(){
   }).join(""):'<div class="muted">Пока пусто. Найди продукт в поиске или отсканируй штрихкод.</div>';
   $("gP").value=S.goal.p;$("gF").value=S.goal.f;$("gC").value=S.goal.c;
   $("gK").textContent="Получается "+gk+" ккал в день.";
+  if(!$("cal").hidden)renderCal();
   renderResults();
 }
 $("eaten").addEventListener("change",ev=>{const i=ev.target.dataset.i;if(i==null)return;
@@ -96,13 +131,14 @@ $("eaten").addEventListener("click",ev=>{const i=ev.target.dataset.del;if(i==nul
   S.goal["pfc"[ix]]=num(ev.target.value);save();renderFood()}));
 
 // поиск
+function search(q){const w=q.toLowerCase().split(/\s+/).filter(Boolean);
+  return S.base.filter(x=>{const n=x.n.toLowerCase();return w.every(s=>n.includes(s)||(x.b&&x.b.includes(s)))})}
 function renderResults(){
-  const q=$("q").value.trim().toLowerCase();let list;
-  if(!q){list=S.recent.map(findByName).filter(Boolean).slice(0,10)}
-  else{const w=q.split(/\s+/);list=allFoods().filter(x=>{const n=x.n.toLowerCase();return w.every(s=>n.includes(s))}).slice(0,30)}
+  const q=$("q").value.trim();
+  const list=q?search(q).slice(0,30):S.recent.map(findByName).filter(Boolean).slice(0,10);
   const head=!q&&list.length?'<div class="msg">Недавние</div>':"";
-  $("results").innerHTML=head+list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+(x.mine?'<span class="tag">мой</span>':"")+
-    '</span><span>'+r0(x.k)+' ккал · Б'+r1(x.p)+' Ж'+r1(x.f)+' У'+r1(x.c)+'</span></button>').join("")+
+  $("results").innerHTML=head+list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+
+    '</span><span>'+macroLine(x)+'</span></button>').join("")+
     (q&&!list.length?'<div class="msg">Ничего не нашёл. Добавь как свой продукт.</div>':"");
 }
 $("q").addEventListener("input",renderResults);
@@ -125,7 +161,21 @@ $("pickAdd").onclick=()=>{
   save();$("pick").hidden=true;cur=null;$("q").value="";renderFood();
 };
 
-// свой продукт
+// сохранить продукт в базу (общая функция для «Питания» и «Базы»)
+function upsert(it,oldName){
+  const was=oldName!=null?S.base.findIndex(x=>x.n===oldName):-1;
+  S.base=S.base.filter((x,i)=>i===was||(x.n!==it.n&&!(it.b&&x.b===it.b)));
+  const idx=oldName!=null?S.base.findIndex(x=>x.n===oldName):-1;
+  if(idx>=0)S.base[idx]=it;else S.base.unshift(it);
+  if(oldName&&oldName!==it.n){S.recent=S.recent.map(n=>n===oldName?it.n:n);if(S.lastG[oldName]){S.lastG[it.n]=S.lastG[oldName];delete S.lastG[oldName]}}
+  save();
+}
+function readProd(pre){
+  let p=num($(pre+"P").value),f=num($(pre+"F").value),c=num($(pre+"C").value),k=num($(pre+"K").value);
+  if(!k)k=r0(p*4+f*9+c*4);return{n:$(pre+"Name").value.trim(),k:k,p:p,f:f,c:c};
+}
+
+// свой продукт из «Питания»
 let formCode=null;
 function openForm(d,msg,code){
   formCode=code||null;$("pick").hidden=true;
@@ -135,13 +185,47 @@ function openForm(d,msg,code){
 $("newBtn").onclick=()=>openForm({n:$("q").value.trim()});
 $("fCancel").onclick=()=>{$("prodForm").hidden=true};
 $("prodForm").addEventListener("submit",ev=>{
-  ev.preventDefault();const n=$("fName").value.trim();if(!n)return;
-  let p=num($("fP").value),f=num($("fF").value),c=num($("fC").value),k=num($("fK").value);
-  if(!k)k=r0(p*4+f*9+c*4);
-  const it={n:n,k:k,p:p,f:f,c:c};if(formCode)it.b=formCode;
-  S.custom=S.custom.filter(x=>x.n!==n&&!(formCode&&x.b===formCode));S.custom.unshift(it);save();
-  $("prodForm").hidden=true;pick(Object.assign({mine:true},it));
+  ev.preventDefault();const it=readProd("f");if(!it.n)return;if(formCode)it.b=formCode;
+  upsert(it);$("prodForm").hidden=true;pick(it);
 });
+
+// вкладка «База»
+let editName=null,delArmed=false;
+function renderBase(){
+  const q=$("bq").value.trim();const list=q?search(q):S.base;
+  $("bCount").textContent="Продуктов в базе: "+S.base.length+". Нажми на продукт, чтобы изменить или удалить.";
+  $("bList").innerHTML=list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+(x.b?'<span class="bc">▮ '+esc(x.b)+'</span>':"")+
+    '</span><span>'+macroLine(x)+'</span></button>').join("")||'<div class="msg">Ничего не нашёл.</div>';
+}
+function openBase(item){
+  editName=item?item.n:null;delArmed=false;
+  $("bTitle").textContent=item?"Изменить продукт":"Новый продукт";
+  $("bName").value=item?item.n:$("bq").value.trim();
+  $("bK").value=item?item.k:"";$("bP").value=item?item.p:"";$("bF").value=item?item.f:"";$("bC").value=item?item.c:"";
+  $("bB").value=item&&item.b||"";$("bDel").hidden=!item;$("bDel").textContent="Удалить";
+  $("bMsg").hidden=true;$("bForm").hidden=false;window.scrollTo(0,0);$("bName").focus();
+}
+$("bq").addEventListener("input",renderBase);
+$("bAdd").onclick=()=>openBase(null);
+$("bList").addEventListener("click",ev=>{const b=ev.target.closest("button");if(b)openBase(findByName(b.dataset.n))});
+$("bCancel").onclick=()=>{$("bForm").hidden=true;editName=null};
+$("bForm").addEventListener("submit",ev=>{
+  ev.preventDefault();const it=readProd("b");if(!it.n)return;
+  const b=$("bB").value.trim();if(b)it.b=b;
+  const clash=S.base.find(x=>x.n===it.n&&x.n!==editName);
+  if(clash){$("bMsg").textContent="Продукт с таким названием уже есть. Измени название или отредактируй тот.";$("bMsg").hidden=false;return}
+  upsert(it,editName);$("bForm").hidden=true;editName=null;renderBase();
+});
+$("bDel").onclick=()=>{
+  if(!delArmed){delArmed=true;$("bDel").textContent="Точно удалить?";setTimeout(()=>{delArmed=false;$("bDel").textContent="Удалить"},4000);return}
+  S.base=S.base.filter(x=>x.n!==editName);S.recent=S.recent.filter(n=>n!==editName);
+  save();$("bForm").hidden=true;editName=null;renderBase();
+};
+$("bRestore").onclick=()=>{
+  const miss=FOOD.filter(f=>!S.base.some(x=>x.n===f.n));
+  S.base=S.base.concat(miss);save();renderBase();
+  $("bRestoreMsg").textContent=miss.length?"Вернул: "+miss.length:"Все стандартные продукты на месте";
+};
 
 // штрихкод
 const hasScan=!!(window.Android&&Android.scan);
@@ -150,8 +234,8 @@ function scanMsg(t){$("scanMsg").textContent=t||"";$("scanMsg").hidden=!t}
 $("scanBtn").onclick=()=>{scanMsg("");try{Android.scan()}catch(e){scanMsg("Сканер не запустился.")}};
 window.onScanError=m=>scanMsg("Сканер не запустился. Нужны сервисы Google Play. "+(m||""));
 window.onScan=code=>{
-  const mine=S.custom.find(x=>x.b===code);
-  if(mine){scanMsg("");pick(Object.assign({mine:true},mine));return}
+  const mine=S.base.find(x=>x.b===code);
+  if(mine){scanMsg("");pick(mine);return}
   scanMsg("Ищу продукт "+code+"…");
   try{Android.lookup(code)}catch(e){onLookup(code,null)}
 };
@@ -159,17 +243,17 @@ window.onLookup=(code,text)=>{
   let pr=null;try{const j=JSON.parse(text);if(j&&j.status===1)pr=j.product}catch(e){}
   const nu=pr&&pr.nutriments||{};
   const k=nu["energy-kcal_100g"]??(nu["energy_100g"]!=null?r0(nu["energy_100g"]/4.184):null);
+  scanMsg("");
   if(pr&&k!=null){
-    scanMsg("");
     openForm({n:(pr.product_name_ru||pr.product_name||"Продукт "+code).trim(),k:r0(k),
       p:r1(nu.proteins_100g||0),f:r1(nu.fat_100g||0),c:r1(nu.carbohydrates_100g||0)},
       "Нашёл в Open Food Facts. Сверь цифры с упаковкой и сохрани.",code);
   }else{
-    scanMsg("");
     openForm({},text===null?"Нет интернета или база не ответила. Впиши КБЖУ на 100 г с упаковки, штрихкод запомнится.":
       "Этого продукта нет в базе. Впиши КБЖУ на 100 г с упаковки, в следующий раз он найдётся по штрихкоду.",code);
   }
 };
 
-let startFood=false;try{startFood=localStorage.getItem(KEY+"-page")==="food"}catch(e){}
-showPage(startFood);
+let startPage="train";try{startPage=localStorage.getItem(KEY+"-page")||"train"}catch(e){}
+if(startPage==="false")startPage="train";if(startPage==="true")startPage="food";
+showPage(startPage);

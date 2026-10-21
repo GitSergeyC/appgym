@@ -18,5 +18,5 @@ jobs:
       - name: Publish release
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          TAG="v1.1.${{ github.run_number }}"
+          TAG="v1.2.${{ github.run_number }}"
           gh release create "$TAG" Zal.apk --title "Зал $TAG" --notes "Установочный файл приложения" --latest

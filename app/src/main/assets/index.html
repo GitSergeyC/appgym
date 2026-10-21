@@ -94,6 +94,28 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .fgrid label,.fl{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
 .msg{font-size:13px;color:var(--muted)}
 .linkbtn{align-self:flex-start;border:none;background:none;color:var(--accent);font:600 15px var(--body);padding:4px 0;cursor:pointer}
+.dlabel{flex:1;border:none;background:none;color:var(--fg);font:600 18px var(--display);letter-spacing:.02em;cursor:pointer;padding:8px}
+.dlabel::after{content:" ▾";color:var(--muted);font-size:14px}
+.dlabel[aria-expanded="true"]::after{content:" ▴"}
+.ctitle{flex:1;text-align:center;font:600 17px var(--display);text-transform:capitalize}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calgrid .wd{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em}
+.calgrid button{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:7px;padding:5px 2px;min-height:48px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;font:600 14px var(--body);font-variant-numeric:tabular-nums}
+.calgrid button small{font:500 10.5px var(--body);color:var(--muted)}
+.calgrid button.ok{border-color:var(--ok)} .calgrid button.ok small{color:var(--ok)}
+.calgrid button.lo small{color:var(--fg)}
+.calgrid button.hi{border-color:var(--warn)} .calgrid button.hi small{color:var(--warn)}
+.calgrid button.sel{outline:2px solid var(--accent);outline-offset:1px}
+.calgrid button.today{background:var(--accent-soft)}
+.calgrid button.fut{opacity:.45}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;border:1.5px solid var(--line);vertical-align:-1px}
+.dot.ok{border-color:var(--ok)} .dot.hi{border-color:var(--warn)} .dot.lo{border-color:var(--muted)}
+.msum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.msum div{background:var(--bg);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.msum b{display:block;font:600 18px var(--display);color:var(--fg);font-variant-numeric:tabular-nums}
+.danger{color:var(--warn)!important;border-color:var(--warn)!important}
+.res .bc{color:var(--muted);font-size:12px;margin-left:6px}
 .wrap{padding-bottom:96px}
 body{margin:0}
 [hidden]{display:none!important}
@@ -104,6 +126,7 @@ body{margin:0}
   <div class="nav" role="tablist">
     <button type="button" role="tab" id="navTrain" aria-selected="true">Тренировки</button>
     <button type="button" role="tab" id="navFood" aria-selected="false">Питание</button>
+    <button type="button" role="tab" id="navBase" aria-selected="false">База</button>
   </div>
 <div class="page" id="pageTrain">
   <header>
@@ -144,12 +167,54 @@ body{margin:0}
   <div class="foot">Записи хранятся на телефоне. <button class="reset" id="reset" type="button">Очистить тренировки</button> <span id="resetMsg"></span></div>
 </div>
 
+<div class="page" id="pageBase" hidden>
+  <header>
+    <h1>База продуктов</h1>
+    <p class="sub" id="bCount"></p>
+  </header>
+  <div class="addrow">
+    <input class="inp" id="bq" type="search" placeholder="Поиск в базе" autocomplete="off">
+    <button class="btn" id="bAdd" type="button">+ Продукт</button>
+  </div>
+  <form id="bForm" class="pick" hidden>
+    <div class="ttl" id="bTitle"></div>
+    <label class="fl">Название<input class="inp" id="bName" type="text" required></label>
+    <div class="muted">На 100 г:</div>
+    <div class="fgrid">
+      <label>Ккал<input class="inp" id="bK" type="text" inputmode="decimal"></label>
+      <label>Белки<input class="inp" id="bP" type="text" inputmode="decimal"></label>
+      <label>Жиры<input class="inp" id="bF" type="text" inputmode="decimal"></label>
+      <label>Углев.<input class="inp" id="bC" type="text" inputmode="decimal"></label>
+    </div>
+    <label class="fl">Штрихкод (необязательно)<input class="inp" id="bB" type="text" inputmode="numeric"></label>
+    <div class="msg" id="bMsg" hidden></div>
+    <div class="pickrow" style="flex-wrap:wrap">
+      <button class="btn" type="submit">Сохранить</button>
+      <button class="btn ghost" id="bCancel" type="button">Отмена</button>
+      <button class="btn ghost danger" id="bDel" type="button">Удалить</button>
+    </div>
+  </form>
+  <div class="res" id="bList"></div>
+  <div class="foot"><button class="reset" id="bRestore" type="button">Вернуть стандартные продукты</button> <span id="bRestoreMsg"></span></div>
+</div>
+
 <div class="page" id="pageFood" hidden>
   <div class="daybar">
     <button type="button" id="dPrev" aria-label="Предыдущий день">‹</button>
-    <div id="dLabel"></div>
+    <button type="button" class="dlabel" id="dLabel" aria-expanded="false" aria-controls="cal"></button>
     <button type="button" id="dNext" aria-label="Следующий день">›</button>
   </div>
+
+  <section class="card" id="cal" hidden aria-label="Календарь">
+    <div class="daybar">
+      <button type="button" id="cPrev" aria-label="Предыдущий месяц">‹</button>
+      <div class="ctitle" id="cTitle"></div>
+      <button type="button" id="cNext" aria-label="Следующий месяц">›</button>
+    </div>
+    <div class="calgrid" id="cGrid"></div>
+    <div class="legend"><span><i class="dot ok"></i>в норме ±10%</span><span><i class="dot lo"></i>недобор</span><span><i class="dot hi"></i>перебор</span></div>
+    <div class="msum" id="cSum"></div>
+  </section>
 
   <section class="card" aria-label="Итог дня">
     <div class="kcal"><span id="kEat">0</span> <small>из <span id="kGoal">0</span> ккал</small></div>
