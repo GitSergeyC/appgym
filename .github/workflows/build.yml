@@ -1,5 +1,7 @@
 name: Build APK
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -10,5 +12,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
       - run: gradle assembleDebug --no-daemon
+      - run: cp app/build/outputs/apk/debug/app-debug.apk Zal.apk
       - uses: actions/upload-artifact@v4
-        with: { name: Zal-apk, path: app/build/outputs/apk/debug/app-debug.apk }
+        with: { name: Zal-apk, path: Zal.apk }
+      - name: Publish release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" Zal.apk --title "Зал $TAG" --notes "Установочный файл приложения" --latest
