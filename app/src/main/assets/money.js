@@ -60,7 +60,50 @@ function starts(){
 function periodOf(i){const S_=starts();if(i<0||i>=S_.length)return null;const a=S_[i],nx=i+1<S_.length?S_[i+1]:addMonth(a);
   return{i,a,b:addDays(nx,-1),open:i===S_.length-1}}
 function curPer(){const S_=starts(),t=today();let i=0;S_.forEach((s,j)=>{if(s<=t)i=j});return i}
-function cmpPer(P){const pp=periodOf(P.i-1);if(!pp)return null;if(!P.open)return pp;
+// ---------- свой период ----------
+let cust=null,ppOpen=false;
+const dayDiff=(a,b)=>Math.round((parse(b)-parse(a))/864e5);
+const MON=["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+function presetRange(kind,base){const t=parse(base||today()),y=t.getFullYear(),m=t.getMonth();
+  const mon=new Date(t);mon.setDate(t.getDate()-((t.getDay()+6)%7));
+  switch(kind){
+    case"day":return[keyOf(t),keyOf(t)];
+    case"week":return[keyOf(mon),addDays(keyOf(mon),6)];
+    case"month":return[keyOf(new Date(y,m,1,12)),keyOf(new Date(y,m+1,0,12))];
+    case"year":return[y+"-01-01",y+"-12-31"];
+  }}
+function custLabel(c){
+  if(c.kind==="day")return c.a===today()?"Сегодня":c.a===addDays(today(),-1)?"Вчера":short(c.a);
+  if(c.kind==="week")return"Неделя "+short(c.a)+" – "+short(c.b);
+  if(c.kind==="month"){const d=parse(c.a);return MON[d.getMonth()][0].toUpperCase()+MON[d.getMonth()].slice(1)+" "+d.getFullYear()}
+  if(c.kind==="year")return c.a.slice(0,4)+" год";
+  if(c.kind==="all")return"Всё время";
+  return short(c.a)+" – "+short(c.b)}
+function setCust(kind,a,b){cust={kind,a,b};cust.label=custLabel(cust);ppOpen=false;Wv.item=null;openTx=null}
+function shiftCust(dir){const c=cust;
+  if(c.kind==="day"){const a=addDays(c.a,dir);setCust("day",a,a);return}
+  if(c.kind==="week"){const a=addDays(c.a,7*dir);setCust("week",a,addDays(a,6));return}
+  if(c.kind==="month"){const d=parse(c.a);d.setMonth(d.getMonth()+dir);const r=presetRange("month",keyOf(d));setCust("month",r[0],r[1]);return}
+  if(c.kind==="year"){const r=presetRange("year",(+c.a.slice(0,4)+dir)+"-06-01");setCust("year",r[0],r[1]);return}
+  const len=dayDiff(c.a,c.b)+1;setCust(c.kind==="all"?"custom":c.kind,addDays(c.a,len*dir),addDays(c.b,len*dir))}
+function activeP(){if(cust)return Object.assign({i:null,custom:true,open:cust.b>=today()},cust);return periodOf(per)}
+function picker(){
+  const t=today(),first=M.tx.reduce((m,x)=>!m||x.d<m?x.d:m,null)||t;
+  const P=[["day","Сегодня",t,t],["yday","Вчера",addDays(t,-1),addDays(t,-1)],["week","Эта неделя"].concat(presetRange("week")),
+    ["lweek","Прошлая неделя"].concat(presetRange("week",addDays(t,-7))),["month","Этот месяц"].concat(presetRange("month")),
+    ["lmonth","Прошлый месяц"].concat(presetRange("month",keyOf(new Date(parse(t).getFullYear(),parse(t).getMonth()-1,15,12)))),
+    ["d7","7 дней",addDays(t,-6),t],["d30","30 дней",addDays(t,-29),t],["year","Этот год"].concat(presetRange("year")),["all","Всё время",first,t]];
+  const a=cust?cust.a:activeP().a,b=cust?cust.b:activeP().b;
+  return '<div class="card pp"><div class="label">Период</div>'+
+   '<button type="button" class="bigbtn'+(cust?" ghost":"")+'" data-pp="reset">↺ От зарплаты до зарплаты'+(cust?"":" · сейчас")+"</button>"+
+   '<div class="chips">'+P.map(([k,n,x,y])=>'<button type="button" data-pk="'+k+'" data-a="'+x+'" data-b="'+y+'" aria-pressed="'+(!!cust&&cust.a===x&&cust.b===y)+'">'+n+"</button>").join("")+"</div>"+
+   '<div class="label">Свой период</div><div class="fgrid" style="grid-template-columns:1fr 1fr"><label>С<input class="inp" id="ppA" type="date" value="'+a+'"></label><label>По<input class="inp" id="ppB" type="date" value="'+b+'"></label></div>'+
+   '<button type="button" class="chipbtn" data-pp="apply">Показать за эти даты</button></div>';
+}
+function cmpPer(P){
+  if(P.custom){const len=dayDiff(P.a,P.b)+1,pa=addDays(P.a,-len);
+    if(P.open){const n=dayDiff(P.a,today());return{a:pa,b:addDays(pa,n),cut:n+1}}return{a:pa,b:addDays(P.a,-1)}}
+  const pp=periodOf(P.i-1);if(!pp)return null;if(!P.open)return pp;
   const n=Math.round((parse(today())-parse(P.a))/864e5);return Object.assign({},pp,{b:addDays(pp.a,Math.min(n,Math.round((parse(pp.b)-parse(pp.a))/864e5))),cut:n+1})}
 const inPer=(t,P)=>P&&t.d>=P.a&&t.d<=P.b;
 function sums(P){let e=0,i=0;M.tx.forEach(t=>{if(!inPer(t,P))return;if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});return{e,i,b:i-e}}
@@ -76,11 +119,11 @@ fab.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 document.body.appendChild(fab);fab.hidden=true;fab.onclick=()=>openSheet();
 
 window.renderMoney=function(){
-  if(per==null||!periodOf(per))per=curPer();
+  if(!cust&&(per==null||!periodOf(per)))per=curPer();
   fab.hidden=$("pageMoney").hidden||sub==="edit"||sub==="loan";
   if(sub==="edit"){root.innerHTML=editor();return}
   if(sub==="loan"){root.innerHTML=loanForm();return}
-  const P=periodOf(per);
+  const P=activeP();
   root.innerHTML=head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P));
 };
 const rerender=()=>{save();renderMoney()};
@@ -88,14 +131,23 @@ const rerender=()=>{save();renderMoney()};
 
 // ---------- шапка ----------
 function head(P){
-  const s=sums(P),last=starts().length-1;let daily="";
-  if(P.open){const t=parse(today()),nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
-    const left=Math.max(1,Math.round((nx-t)/864e5)),mon=nx.toLocaleDateString("ru-RU",{month:"short"}).replace(".","");
-    daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(s.b>0?fmt(s.b/left)+" ₸/день":"—")+"</b></div>"}
-  else daily='<div class="daily"><span>Период закрыт</span><b class="'+(s.b>=0?"pos":"neg")+'">'+(s.b>=0?"осталось ":"перерасход ")+fmt(Math.abs(s.b))+" ₸</b></div>";
-  const hasSal=M.tx.some(isSalaryTx);
-  return '<div class="hero"><div class="pnav"><button type="button" data-per="-1" aria-label="Прошлый период"'+(per>0?"":" disabled")+'>‹</button><div><b>'+short(P.a)+" – "+(P.open?"сейчас":short(P.b))+'</b><span>'+(hasSal?"от зарплаты "+short(P.a):"с "+short(P.a)+" · запиши зарплату, и период начнётся с неё")+(P.open&&hasSal?" · идёт "+(Math.round((parse(today())-parse(P.a))/864e5)+1)+"-й день":"")+'</span></div><button type="button" data-per="1" aria-label="Следующий период"'+(per<last?"":" disabled")+">›</button></div>"+
+  const s=sums(P),last=starts().length-1;let daily="",nav="";
+  if(P.custom){
+    const days=Math.max(1,dayDiff(P.a,P.open?today():P.b)+1);
+    daily='<div class="daily"><span>'+(P.open?"Идёт "+days+"-й день":"Дней: "+days)+' · расход в день</span><b>'+fmt(s.e/days)+" ₸</b></div>";
+    nav='<div class="pnav"><button type="button" data-cs="-1" aria-label="Раньше">‹</button><button type="button" class="ptitle" data-pp="open"><b>'+esc(P.label)+' ▾</b><span>'+short(P.a)+" – "+short(P.b)+'</span></button><button type="button" data-cs="1" aria-label="Позже"'+(P.b>=today()?" disabled":"")+">›</button></div>"+
+      '<button type="button" class="chipbtn back" data-pp="reset">↺ Вернуться к периоду от зарплаты</button>';
+  }else{
+    if(P.open){const t=parse(today()),nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
+      const left=Math.max(1,Math.round((nx-t)/864e5)),mon=nx.toLocaleDateString("ru-RU",{month:"short"}).replace(".","");
+      daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(s.b>0?fmt(s.b/left)+" ₸/день":"—")+"</b></div>"}
+    else daily='<div class="daily"><span>Период закрыт</span><b class="'+(s.b>=0?"pos":"neg")+'">'+(s.b>=0?"осталось ":"перерасход ")+fmt(Math.abs(s.b))+" ₸</b></div>";
+    const hasSal=M.tx.some(isSalaryTx);
+    nav='<div class="pnav"><button type="button" data-per="-1" aria-label="Прошлый период"'+(per>0?"":" disabled")+'>‹</button><button type="button" class="ptitle" data-pp="open"><b>'+short(P.a)+" – "+(P.open?"сейчас":short(P.b))+' ▾</b><span>'+(hasSal?"от зарплаты "+short(P.a):"с "+short(P.a)+" · запиши зарплату, и период начнётся с неё")+(P.open&&hasSal?" · идёт "+(Math.round((parse(today())-parse(P.a))/864e5)+1)+"-й день":"")+'</span></button><button type="button" data-per="1" aria-label="Следующий период"'+(per<last?"":" disabled")+">›</button></div>";
+  }
+  return '<div class="hero">'+nav+
     '<div class="nums"><div><span>Расходы</span><b>'+fmt(s.e)+'</b></div><div><span>Доходы</span><b>'+fmt(s.i)+'</b></div><div><span>Остаток</span><b class="'+(s.b>=0?"pos":"neg")+'">'+fmt(s.b)+"</b></div></div>"+daily+"</div>"+
+    (ppOpen?picker():"")+
     '<div class="seg" role="group">'+[["rec","Записи"],["where","Куда ушло"],["rep","Отчёты"]].map(([k,n])=>'<button type="button" data-sub="'+k+'" aria-pressed="'+(sub===k)+'">'+n+"</button>").join("")+"</div>";
 }
 
@@ -218,6 +270,12 @@ root.addEventListener("click",e=>{
   if(d.x2==="photo"){openSheet();Fm.photoAsk=true;renderSheet();return}
   if(d.sub){sub=d.sub;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
   if(d.per){per+=+d.per;Wv.item=null;openTx=null;renderMoney();return}
+  if(d.cs){shiftCust(+d.cs);renderMoney();return}
+  if(d.pp==="open"){ppOpen=!ppOpen;renderMoney();return}
+  if(d.pp==="reset"){cust=null;ppOpen=false;per=curPer();Wv.item=null;renderMoney();return}
+  if(d.pp==="apply"){let a=$("ppA").value,b=$("ppB").value;if(!a||!b)return;if(a>b)[a,b]=[b,a];setCust("custom",a,b);renderMoney();return}
+  if(d.pk){const k=d.pk,kind=k==="yday"?"day":k==="lweek"?"week":k==="lmonth"?"month":k==="d7"||k==="d30"?"custom":k;
+    setCust(kind,d.a,d.b);if(k==="d7"||k==="d30")cust.label=k==="d7"?"Последние 7 дней":"Последние 30 дней";renderMoney();return}
   if(d.edit){openSheet(M.tx.find(t=>t.id===+d.edit));return}
   if(d.del){if(delArm!==+d.del){delArm=+d.del;renderMoney();setTimeout(()=>{if(delArm===+d.del){delArm=null;renderMoney()}},4000);return}
     removeTx(+d.del);delArm=null;openTx=null;rerender();toast("Запись удалена");return}
@@ -403,6 +461,7 @@ function saveSheet(){
   if(Fm.kin&&window.kaspiDone)kaspiDone(Fm.kin,tx);
   save();closeSheet();sub="rec";openTx=null;per=curPer();
   const idx=starts().findIndex((s,i,a)=>tx.d>=s&&(i===a.length-1||tx.d<a[i+1]));if(idx>=0)per=idx;
+  if(cust&&(tx.d<cust.a||tx.d>cust.b))cust=null;
   renderMoney();pushNotif();
   if(tx.loan){const L=M.loans.find(x=>x.id===tx.loan);if(L){const p=loanPaid(L);toast(p>=L.total?"«"+L.n+"» закрыт: все "+L.total+" платежей внесены":"Платёж "+p+" из "+L.total+". Осталось "+(L.total-p));return}}
   toast(Fm.edit?"Изменено":tx.foodLink?"Записано в деньги и в питание":"Записано");
