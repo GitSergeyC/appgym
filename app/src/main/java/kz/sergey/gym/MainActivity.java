@@ -22,6 +22,10 @@ import android.os.Vibrator;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
@@ -38,6 +42,15 @@ import java.net.URLEncoder;
 
 public class MainActivity extends Activity {
     private WebView web;
+    private FrameLayout rootView;
+
+    // читает позиции со страницы чека consumer.oofd.kz после того, как её соберут скрипты
+    private static final String EXTRACT =
+        "(function(){try{var rows=document.querySelectorAll('app-ticket-items .row-position');if(!rows.length)return null;" +
+        "var items=[];for(var i=0;i<rows.length;i++){var c=rows[i].children,a=[];for(var j=0;j<c.length;j++)a.push((c[j].innerText||c[j].textContent||'').trim());items.push(a);}" +
+        "var h=document.querySelector('app-ticket-header'),seller='',ht=h?(h.innerText||h.textContent||''):'';" +
+        "if(h){var ps=document.querySelectorAll('p');for(var k=0;k<ps.length;k++){if(h.compareDocumentPosition(ps[k])&4){var f=ps[k].firstChild;seller=((f&&f.textContent)||ps[k].textContent||'').trim();break;}}}" +
+        "return JSON.stringify({items:items,header:ht,seller:seller});}catch(e){return null}})()";
 
     private void js(final String code) {
         runOnUiThread(() -> web.evaluateJavascript(code, null));
@@ -165,6 +178,60 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void scanQR() {
+            runOnUiThread(() -> {
+                try {
+                    GmsBarcodeScannerOptions opts = new GmsBarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(Barcode.FORMAT_QR_CODE).build();
+                    GmsBarcodeScanning.getClient(MainActivity.this, opts).startScan()
+                            .addOnSuccessListener(b -> {
+                                String v = b.getRawValue();
+                                if (v != null) js("window.onQR&&onQR(" + JSONObject.quote(v) + ")");
+                            })
+                            .addOnFailureListener(e -> js("window.wToast&&wToast('Сканер не запустился')"));
+                } catch (Exception e) {
+                    js("window.wToast&&wToast('Сканер не запустился')");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void fetchReceipt(final String url) {
+            runOnUiThread(() -> {
+                final WebView w = new WebView(MainActivity.this);
+                w.getSettings().setJavaScriptEnabled(true);
+                w.getSettings().setDomStorageEnabled(true);
+                w.setWebViewClient(new WebViewClient());
+                w.setAlpha(0f);
+                rootView.addView(w, 0, new FrameLayout.LayoutParams(400, 800)); // под основным экраном, касания не перехватывает
+                String u = url.startsWith("http://") ? "https://" + url.substring(7) : url;
+                w.loadUrl(u);
+                final Handler h = new Handler(Looper.getMainLooper());
+                final int[] tries = {0};
+                final boolean[] done = {false};
+                h.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (done[0]) return;
+                        tries[0]++;
+                        w.evaluateJavascript(EXTRACT, v -> {
+                            if (done[0]) return;
+                            boolean ok = v != null && !v.equals("null") && v.length() > 4;
+                            if (ok || tries[0] >= 25) {
+                                done[0] = true;
+                                js("window.onReceipt&&onReceipt(" + (ok ? v : "null") + "," + JSONObject.quote(url) + ")");
+                                rootView.removeView(w);
+                                w.destroy();
+                            } else {
+                                h.postDelayed(this, 1000);
+                            }
+                        });
+                    }
+                }, 2500);
+            });
+        }
+
+        @JavascriptInterface
         public void voice() {
             runOnUiThread(() -> {
                 Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -257,7 +324,9 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         web.addJavascriptInterface(new Bridge(), "Android");
-        setContentView(web);
+        rootView = new FrameLayout(this);
+        rootView.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(rootView);
         if (state != null) web.restoreState(state);
         else web.loadUrl("file:///android_asset/index.html");
     }

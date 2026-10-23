@@ -320,6 +320,16 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .ptable span:nth-child(even){text-align:right;color:var(--muted)}
 .ptable .best{color:var(--ok)!important}
 #costCard .kcal small{font:500 15px var(--body);color:var(--muted)}
+.assign{background:var(--accent);color:var(--bg);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.assign .chipbtn{background:var(--bg);color:var(--fg);border-color:transparent}
+.line.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.line .raw{display:block;color:var(--muted);font-size:11px;margin-top:2px;cursor:pointer;text-decoration:underline dotted}
+.pickit{border:1px dashed var(--warn);background:none;color:var(--warn);border-radius:8px;padding:5px 8px;font:500 13px var(--body);cursor:pointer}
+.qrbig{display:flex;align-items:center;justify-content:center;gap:10px}
+.qrbig svg{width:22px;height:22px}
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 12px;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
 .wrap{padding-bottom:calc(150px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -711,5 +721,6 @@ tb.onclick=()=>{
 <script src="energy.js"></script>
 <script src="categories.js"></script>
 <script src="money.js"></script>
+<script src="receipt.js"></script>
 <script src="workout.js"></script>
 </body></html>

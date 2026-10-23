@@ -99,8 +99,9 @@ function head(P){
 function records(P){
   const by={};M.tx.forEach(t=>{if(inPer(t,P))(by[t.d]=by[t.d]||[]).push(t)});
   const days=Object.keys(by).sort().reverse();
-  if(!days.length)return '<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
-  return days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
+  const qrBtn=hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Сканировать чек (QR)</button>":"";
+  if(!days.length)return qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
+  return qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
     return '<div class="daycard"><div class="dayh"><b>'+short(d)+' <span style="font-weight:400">'+wday(d)+"</span></b><span>"+(e?"−"+fmt(e):"")+(e&&i?" · ":"")+(i?'<span class="pos">+'+fmt(i)+"</span>":"")+"</span></div>"+
       by[d].slice().reverse().map(txRow).join("")+"</div>"}).join("");
 }
@@ -210,6 +211,7 @@ function armOr(key){if(edArm===key){edArm=null;return true}edArm=key;setTimeout(
 // ---------- события ----------
 root.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;const d=b.dataset;
+  if(d.x2==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}return}
   if(d.sub){sub=d.sub;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
   if(d.per){per+=+d.per;Wv.item=null;openTx=null;renderMoney();return}
   if(d.edit){openSheet(M.tx.find(t=>t.id===+d.edit));return}
@@ -278,7 +280,7 @@ let Fm={};
 function openSheet(tx){
   if(tx){Fm={edit:tx.id,t:tx.t,c:tx.t==="tr"?null:(tx.c==="mixed"?(tx.lines[0]||{}).c:tx.c),s:null,
       lines:(tx.lines||[]).map(l=>Object.assign({},l,{a:String(l.a),q:l.q?String(l.q):""})),acc:tx.acc||tx.from,to:tx.to||"",a:tx.t==="tr"?String(tx.a):"",d:tx.d,foodOn:!!tx.foodLink||tx.t!=="exp",q:"",note:tx.note||"",own:null}}
-  else Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null};
+  else Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,assign:null};
   sheet.hidden=false;document.body.style.overflow="hidden";renderSheet();
 }
 function closeSheet(){sheet.hidden=true;document.body.style.overflow=""}
@@ -287,6 +289,7 @@ function addLine(c,s,it){Fm.c=c;Fm.s=s;Fm.lines.push({c,s,n:it.n,f:it.f,u:it.u,a
 const hasVoice=!!(window.Android&&Android.voice);
 function renderSheet(){
   const cats=Fm.t==="inc"?M.cats.inc:M.cats.exp,c=Fm.c&&Fm.t!=="tr"?catOf(Fm.c):null,subc=c&&Fm.s?c.s.find(x=>x.n===Fm.s):null;
+  if(Fm.busy){sheet.innerHTML='<div class="sin"><div class="sheethead"><button type="button" data-x="close">Отмена</button><b>Чек</b><span style="width:60px"></span></div><div class="empty"><div class="spin"></div>'+esc(Fm.busy)+"</div></div>";return}
   let h='<div class="sin"><div class="sheethead"><button type="button" data-x="close">Отмена</button><b>'+(Fm.edit?"Изменить":"Добавить")+'</b><span style="width:60px"></span></div>'+
    '<div class="seg">'+[["exp","Расход"],["inc","Доход"],["tr","Перевод"]].map(([k,n])=>'<button type="button" data-ft="'+k+'" aria-pressed="'+(Fm.t===k)+'">'+n+"</button>").join("")+"</div>";
   if(Fm.t==="tr"){
@@ -296,7 +299,10 @@ function renderSheet(){
     sheet.innerHTML=h;return;
   }
   h+='<div class="quick"><input id="qtext" type="text" placeholder="Поиск или «пиво 900 чипсы 600»" aria-label="Быстрый ввод" value="'+esc(Fm.q)+'" autocomplete="off">'+
-   (hasVoice?'<button type="button" data-x="mic" aria-label="Сказать голосом">'+svg("mic")+"</button>":"")+"</div>";
+   (hasVoice?'<button type="button" data-x="mic" aria-label="Сказать голосом">'+svg("mic")+"</button>":"")+
+   (hasQR()?'<button type="button" data-x="qr" aria-label="Сканировать QR чека">'+svg("qr")+"</button>":"")+"</div>";
+  if(Fm.msg)h+='<div class="foodlink"><div class="hint" style="color:var(--fg)">'+esc(Fm.msg)+"</div></div>";
+  if(Fm.assign!=null&&Fm.lines[Fm.assign])h+='<div class="assign"><span>Выбери позицию для «<b>'+esc(Fm.lines[Fm.assign].raw||Fm.lines[Fm.assign].n||"")+'</b>»: найди в строке выше или выбери категорию ниже.</span><button type="button" class="chipbtn" data-x="unassign">Готово</button></div>';
   const found=Fm.q?findItems(Fm.q,Fm.t):[];
   if(found.length)h+='<div class="found">'+found.map((x,i)=>'<button type="button" data-fi="'+i+'"><span>'+esc(x.it.n)+'</span><span>'+esc(catOf(x.c).n+" › "+x.s)+"</span></button>").join("")+"</div>";
   else if(!Fm.lines.length)h+='<div class="hint">Пиши позицию — «грудка», «пиво», «яндекс» — или выбери категорию. Несколько сразу: «пиво 900 чипсы 600 » (после суммы пробел). Можно добавить слово «вчера».'+(hasVoice?" Или нажми микрофон и скажи то же самое.":"")+"</div>";
@@ -309,7 +315,8 @@ function renderSheet(){
       if(Fm.own)h+='<div class="addrow"><input class="inp" id="ownN" placeholder="Название позиции"><button type="button" class="chipbtn" data-x="ownok">Добавить</button></div><div class="hint">Позиция сохранится в «'+esc(sv.n)+'» и будет в списке в следующий раз.</div>'}
   }
   if(Fm.lines.length){
-    h+='<div class="lines">'+Fm.lines.map((l,i)=>'<div class="line"><div class="nm">'+esc(l.n)+"<small>"+esc(catOf(l.c).n+" › "+l.s)+(l.f?" · питание":"")+"</small></div>"+
+    h+='<div class="lines">'+Fm.lines.map((l,i)=>'<div class="line'+(Fm.assign===i?" sel":"")+'"><div class="nm">'+(l.c?esc(l.n)+"<small>"+esc(catOf(l.c).n+" › "+l.s)+(l.f?" · питание":"")+"</small>":'<button type="button" class="pickit" data-as="'+i+'">Выбрать позицию</button>')+
+      (l.raw?'<small class="raw" data-as="'+i+'">'+esc(l.raw)+(l.c?" · сменить":"")+"</small>":"")+"</div>"+
       (l.u?'<label class="mini">Кол-во, '+l.u+'<input class="inp" data-lq="'+i+'" inputmode="decimal" value="'+esc(l.q||"")+'"></label>':"<span></span>")+
       '<label class="mini">Сумма, ₸<input class="inp" data-la="'+i+'" inputmode="numeric" value="'+esc(l.a||"")+'"></label><button type="button" class="x" data-lx="'+i+'" aria-label="Убрать">×</button></div>').join("")+"</div>"+
       '<div class="total"><span>Итого, '+Fm.lines.length+' поз.</span><b id="tot">'+fmt(lineSum())+" ₸</b></div>";
@@ -329,14 +336,20 @@ function renderSheet(){
 function grab(){const v=id=>{const e=$(id);return e?e.value:null};
   if(v("famt")!=null)Fm.a=v("famt").replace(/\D/g,"");if(v("facc"))Fm.acc=v("facc");if(v("ffrom"))Fm.acc=v("ffrom");if(v("fto"))Fm.to=v("fto");
   if(v("fdate"))Fm.d=v("fdate");if($("ffood"))Fm.foodOn=$("ffood").checked;if(v("fnote")!=null)Fm.note=v("fnote")}
+function assignTo(c,s,it){const l=Fm.lines[Fm.assign];Object.assign(l,{c,s,n:it.n,f:it.f,u:it.u});if(it.u&&!l.q)l.q=it.u==="шт"?"1":"";
+  const nx=Fm.lines.findIndex(x=>!x.c);Fm.assign=nx>=0?nx:null;Fm.c=c;renderSheet()}
+sheet.addEventListener("click",e=>{const r=e.target.closest(".raw");if(r){Fm.assign=+r.dataset.as;renderSheet();sheet.scrollTop=0}});
 function focusLast(){const ins=sheet.querySelectorAll("[data-la]");if(ins.length)ins[ins.length-1].focus()}
 sheet.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;grab();const d=b.dataset;
   if(d.ft){Fm.t=d.ft;Fm.c=null;Fm.s=null;Fm.lines=[];Fm.q="";renderSheet()}
   else if(d.c){Fm.c=d.c;const c=catOf(Fm.c);Fm.s=c.s.length===1?c.s[0].n:null;Fm.own=null;renderSheet()}
   else if(d.s!=null){Fm.s=d.s;Fm.own=null;renderSheet()}
-  else if(d.it!=null){const c=catOf(Fm.c),sv=c.s.find(x=>x.n===d.sn);addLine(Fm.c,sv.n,sv.it[+d.it]);renderSheet();focusLast()}
-  else if(d.fi!=null){const x=findItems(Fm.q,Fm.t)[+d.fi];Fm.q="";addLine(x.c,x.s,x.it);renderSheet();focusLast()}
+  else if(d.it!=null){const c=catOf(Fm.c),sv=c.s.find(x=>x.n===d.sn);if(Fm.assign!=null)assignTo(Fm.c,sv.n,sv.it[+d.it]);else{addLine(Fm.c,sv.n,sv.it[+d.it]);renderSheet();focusLast()}}
+  else if(d.fi!=null){const x=findItems(Fm.q,Fm.t)[+d.fi];Fm.q="";if(Fm.assign!=null)assignTo(x.c,x.s,x.it);else{addLine(x.c,x.s,x.it);renderSheet();focusLast()}}
+  else if(d.as!=null){Fm.assign=+d.as;renderSheet();window.scrollTo(0,0);sheet.scrollTop=0}
+  else if(d.x==="unassign"){Fm.assign=null;renderSheet()}
+  else if(d.x==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}}
   else if(d.lx!=null){Fm.lines.splice(+d.lx,1);renderSheet()}
   else if(d.x==="own"){Fm.own=true;renderSheet();$("ownN").focus()}
   else if(d.x==="ownok"){const n=$("ownN").value.trim();if(!n)return;const c=catOf(Fm.c),sv=c.s.find(x=>x.n===Fm.s)||c.s[0];
@@ -351,7 +364,8 @@ function saveSheet(){
   if(Fm.t==="tr"){const a=+Fm.a;if(!a){toast("Впиши сумму");return}if(Fm.acc===Fm.to){toast("Выбери разные счета");return}
     tx={d:Fm.d,t:"tr",from:Fm.acc,to:Fm.to,a}}
   else{const c=catOf(Fm.c);
-    let lines=Fm.lines.filter(l=>+l.a>0).map(l=>{const o={c:l.c,s:l.s,n:l.n,a:+l.a};if(l.f)o.f=l.f;if(l.u){o.u=l.u;const q=+String(l.q).replace(",",".");if(q)o.q=q}return o});
+    Fm.lines.forEach(l=>{if(!l.c){l.c="other";l.s="Прочее";l.n=l.raw||"Прочее"}});
+    let lines=Fm.lines.filter(l=>+l.a>0).map(l=>{const o={c:l.c,s:l.s,n:l.n,a:+l.a};if(l.raw)o.raw=l.raw;if(l.f)o.f=l.f;if(l.u){o.u=l.u;const q=+String(l.q).replace(",",".");if(q)o.q=q}return o});
     let a=lines.reduce((s,l)=>s+l.a,0);
     if(!lines.length){if(Fm.lines.length){toast("Впиши суммы позиций");return}a=+Fm.a;if(!a||!Fm.c){toast("Впиши сумму");return}
       lines=[{c:Fm.c,s:Fm.s||c.s[0].n,n:Fm.s||c.n,a}]}
@@ -359,10 +373,11 @@ function saveSheet(){
     tx={d:Fm.d,t:Fm.t,c:cs.length===1?cs[0]:"mixed",a,acc:Fm.acc,lines};
     if(Fm.note.trim()){tx.note=Fm.note.trim();if(lines.length>1)tx.receipt=tx.note}
     if(Fm.t==="exp"&&Fm.foodOn&&lines.some(l=>l.f&&EAT_CATS.includes(l.c)))tx.foodLink=true;
+    if(Fm.qr)tx.qr=Fm.qr;
   }
   if(Fm.edit){const old=M.tx.find(x=>x.id===Fm.edit);unlinkFood(old);tx.id=Fm.edit;M.tx[M.tx.indexOf(old)]=tx}
   else{tx.id=M.nid++;M.tx.push(tx)}
-  if(tx.t==="exp"){updatePrices(tx);linkFood(tx)}
+  if(tx.t==="exp"){updatePrices(tx);linkFood(tx);if(window.rememberReceipt)rememberReceipt(tx,Fm.lines.filter(l=>l.raw&&l.c!=="other"))}
   save();closeSheet();sub="rec";openTx=null;per=curPer();
   const idx=starts().findIndex((s,i,a)=>tx.d>=s&&(i===a.length-1||tx.d<a[i+1]));if(idx>=0)per=idx;
   renderMoney();toast(Fm.edit?"Изменено":tx.foodLink?"Записано в деньги и в питание":"Записано");
@@ -397,5 +412,13 @@ window.onVoice=function(text){
   if(r.added){Fm.q="";renderSheet();toast("Услышал: «"+text+"»")}
   else{Fm.q=text.replace(/\d+/g,"").trim();renderSheet();toast("Услышал: «"+text+"». Выбери позицию из списка")}
 };
+// ---------- чеки: API для receipt.js ----------
+const hasQR=()=>!!(window.Android&&Android.scanQR);
+window.MoneyAPI={catOf,findItems,items:t=>itemIndex().filter(x=>x.t===t),
+  loading(msg){Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,busy:msg};
+    sheet.hidden=false;document.body.style.overflow="hidden";renderSheet()},
+  openReceipt(o){if(sheet.hidden)this.loading("");Fm.busy=null;Fm.lines=o.lines;Fm.d=o.d||Fm.d;Fm.note=o.note||"";Fm.qr=o.qr;Fm.msg=o.msg;Fm.foodOn=false;
+    if(!o.lines.length&&o.total)Fm.a=String(Math.round(o.total));
+    const un=o.lines.findIndex(l=>!l.c);Fm.assign=un>=0?un:null;if(o.lines[0]&&o.lines[0].c)Fm.c=o.lines[0].c;renderSheet()}};
 window.addEventListener("DOMContentLoaded",()=>{if(!$("pageMoney").hidden)renderMoney()});
 })();
