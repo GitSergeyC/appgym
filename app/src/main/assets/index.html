@@ -338,6 +338,30 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .loanh span{font:600 15px var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
 .due{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
 .due.late{border-color:var(--warn)}
+.qadd{width:auto!important;border-radius:999px!important;padding:0 14px!important;font:600 14px var(--body)!important}
+.voicebox{gap:4px}
+.voicebox div{font-size:14px;color:var(--fg)}
+.voicebox div:first-child{color:var(--muted);font-size:13px}
+.linkbtn{align-self:center;border:none;background:none;color:var(--accent);font:600 14px var(--body);cursor:pointer;padding:6px}
+.cerow{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center}
+.cerow .nmb{border:none;background:none;color:var(--fg);text-align:left;font:500 15px var(--body);cursor:pointer;padding:0;min-width:0}
+.cerow .nmb small{display:block;color:var(--muted);font-size:12px}
+.mv{display:flex;gap:4px}
+.mv button{width:34px;height:34px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;cursor:pointer;font-size:15px}
+.mv button:disabled{opacity:.3}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.swatches button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.swatches button[aria-pressed="true"]{border-color:var(--fg)}
+.icons{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.icons button{aspect-ratio:1;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.icons button svg{width:20px;height:20px}
+.icons button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.subh{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center}
+.ichips{display:flex;flex-wrap:wrap;gap:6px}
+.ichips button{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:6px 11px;font:13px var(--body);cursor:pointer}
+.ichips button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.ichips .kk{margin-left:4px}
+.ied{background:var(--accent-soft);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
 .wrap{padding-bottom:calc(150px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -406,6 +430,9 @@ body{margin:0}
 </div>
 
 <div class="page" id="pageBase" hidden>
+  <div class="seg" role="group" id="baseSeg"><button type="button" data-bt="prod" aria-pressed="true">Продукты</button><button type="button" data-bt="cat" aria-pressed="false">Категории денег</button></div>
+  <div id="catEd" class="money" hidden></div>
+  <div id="baseProd" class="page">
   <header>
     <h1>База продуктов</h1>
     <p class="sub" id="bCount"></p>
@@ -435,6 +462,7 @@ body{margin:0}
   </form>
   <div class="res" id="bList"></div>
   <div class="foot"><button class="reset" id="bRestore" type="button">Вернуть стандартные продукты</button> <span id="bRestoreMsg"></span></div>
+  </div>
 </div>
 
 <div class="page" id="pageFood" hidden>
@@ -732,5 +760,6 @@ tb.onclick=()=>{
 <script src="categories.js"></script>
 <script src="money.js"></script>
 <script src="receipt.js"></script>
+<script src="cateditor.js"></script>
 <script src="workout.js"></script>
 </body></html>

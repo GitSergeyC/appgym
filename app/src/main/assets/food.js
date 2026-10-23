@@ -67,6 +67,7 @@ function showPage(name){
   if(!PAGES[name])name="train";
   for(const k in PAGES){$(PAGES[k][0]).hidden=k!==name;$(PAGES[k][1]).setAttribute("aria-selected",k===name)}
   $("timer").hidden=name!=="train"||!(S.workout&&S.workout.on);
+  {const f=document.querySelector(".mfab");if(f)f.hidden=name!=="money";}
   try{localStorage.setItem(KEY+"-page",name)}catch(e){}
   if(name==="food")renderFood();if(name==="base")renderBase();if(name==="stats"&&window.renderStats)renderStats();if(name==="money"&&window.renderMoney)renderMoney();if(name==="train"&&window.renderWorkout)renderWorkout();
   window.scrollTo(0,0);
