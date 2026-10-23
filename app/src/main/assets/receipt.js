@@ -108,6 +108,47 @@ window.onReceipt=function(json,url){
       "Позиции не загрузились"+(p.s?", но есть сумма "+Math.round(p.s).toLocaleString("ru-RU")+" ₸ и дата":"")+". Выбери категорию или добавь позиции вручную."});
   pending=null;
 };
+// ----- фото чека: распознанный текст → позиции -----
+// Форматы: Small «НАЗВАНИЕ / 1 x 380.00 = 380.00_A», Magnum «4870… НАЗВАНИЕ … 10.000000 X 235.00 / =2350.00_A»
+const NUM=/\d[\d  ]*[.,]\d{1,2}/;
+function fixDigits(s){return s.replace(/(?<=[\d.,\s=xх×*])[ОоOo](?=[\d.,\s]|$)/g,"0").replace(/(?<=\d)[Зз](?=\d)/g,"3")}
+function parseOcr(text){
+  const L=String(text||"").split(/\r?\n/).map(x=>fixDigits(x.trim())).filter(Boolean);
+  const items=[],used=new Set();let total=0,d=null,seller="";
+  const skip=/(ндс|итог|сдача|наличн|банк|карт|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|надбавк|скидк)/i;
+  for(let i=0;i<L.length;i++){const x=L[i];
+    if(!seller){const m=x.match(/small|magnum|galmart|анвар|арзан|metro/i);if(m)seller=sellerName(m[0])}
+    if(!d){let m=x.match(/(\d{2})[.\/](\d{2})[.\/](\d{4})/);if(m)d=m[3]+"-"+m[2]+"-"+m[1];else{m=x.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m)d=m[1]+"-"+m[2]+"-"+m[3]}}
+    if(/итог/i.test(x)&&!/промежут/i.test(x)){const m=x.match(NUM)||(L[i+1]||"").match(NUM);if(m&&!total)total=num(m[0])}
+    const m=x.match(/(\d+(?:[.,]\d+)?)\s*[xхХX×*]\s*(\d[\d  ]*[.,]\d{1,2})(?:\s*=\s*(\d[\d  ]*[.,]\d{1,2}))?/);
+    if(!m)continue;
+    const qty=num(m[1]),price=num(m[2]);let tot=m[3]?num(m[3]):0;
+    if(!tot){const n=(L[i+1]||"").match(/^=?\s*(\d[\d  ]*[.,]\d{1,2})/);if(n){tot=num(n[1]);used.add(i+1)}}
+    if(!tot)tot=Math.round(qty*price*100)/100;
+    let name=x.slice(0,m.index).replace(/^\d{6,}\s*/,"").trim();
+    // название на предыдущих строках (Small) или продолжение на этой (Magnum: «ДАР 4.000000 X 35.00»)
+    for(let k=i-1;k>=0&&k>=i-2&&(name.replace(/[^a-zа-я]/gi,"").length<6);k--){
+      if(used.has(k)||skip.test(L[k])||NUM.test(L[k])&&!/[a-zа-я]{3}/i.test(L[k]))break;
+      name=L[k].replace(/^\d{6,}\s*/,"").trim()+" "+name;used.add(k)}
+    // Magnum: начало названия на строке со штрихкодом
+    {const k=i-1;if(k>=0&&!used.has(k)&&/^\d{8,}\s+[a-zа-я]/i.test(L[k])&&!/[xхХX×*]\s*\d/.test(L[k])){name=L[k].replace(/^\d{6,}\s*/,"")+" "+name;used.add(k)}}
+    name=name.replace(/\s+/g," ").trim();
+    if(name.replace(/[^a-zа-я]/gi,"").length<2||!tot)continue;
+    used.add(i);items.push({name,qty,price,total:tot});
+  }
+  return{items,total,d,seller};
+}
+function buildLines(items){return items.map(it=>{const m=match(it.name);const l={raw:it.name,a:String(Math.round(it.total)),q:""};
+  if(m){Object.assign(l,{c:m.c,s:m.s,n:m.it.n,f:m.it.f,u:m.it.u});if(m.it.u)l.q=String(qtyFor(it.name,it.qty||1,m.it.u))}return l})}
+window.parseOcr=parseOcr;
+window.onOcrStart=function(){MoneyAPI.loading("Распознаю чек с фото… обычно 5–20 секунд")};
+window.onOcr=function(text){
+  if(!text){MoneyAPI.openReceipt({lines:[],msg:"Не получилось распознать фото. Сфотографируй ровнее, при хорошем свете, чтобы чек занимал весь кадр."});return}
+  const r=parseOcr(text),lines=buildLines(r.items),sum=lines.reduce((s,l)=>s+(+l.a||0),0);
+  MoneyAPI.openReceipt({lines,d:r.d,note:r.seller,total:r.total,
+    msg:lines.length?"С фото: "+lines.length+" поз. на "+Math.round(sum).toLocaleString("ru-RU")+" ₸"+(r.total&&Math.abs(r.total-sum)>1?" (ИТОГ в чеке "+Math.round(r.total).toLocaleString("ru-RU")+" ₸ — что-то не распозналось, проверь)":" — сходится с ИТОГ")+". Фото распознаётся не идеально: проверь названия и суммы.":
+      "Позиции не нашёл"+(r.total?", но ИТОГ "+Math.round(r.total).toLocaleString("ru-RU")+" ₸":"")+". Попробуй переснять ближе или добавь вручную."});
+};
 // запоминаем, как сопоставили строки чека
 window.rememberReceipt=function(tx,lines){(lines||[]).forEach(l=>{if(l.raw&&l.c&&l.n)M.rmap[key(l.raw)]={c:l.c,s:l.s,n:l.n}});if(tx.qr)M.seen[tx.qr]=tx.id};
 window.QR_AVAILABLE=hasQR;

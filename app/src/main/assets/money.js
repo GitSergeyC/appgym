@@ -63,7 +63,7 @@ function cmpPer(P){const pp=periodOf(P.i-1);if(!pp)return null;if(!P.open)return
   const n=Math.round((parse(today())-parse(P.a))/864e5);return Object.assign({},pp,{b:addDays(pp.a,Math.min(n,Math.round((parse(pp.b)-parse(pp.a))/864e5))),cut:n+1})}
 const inPer=(t,P)=>P&&t.d>=P.a&&t.d<=P.b;
 function sums(P){let e=0,i=0;M.tx.forEach(t=>{if(!inPer(t,P))return;if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});return{e,i,b:i-e}}
-const expLines=P=>{const r=[];M.tx.forEach(t=>{if(t.t==="exp"&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d},l)))});return r};
+const expLines=P=>{const r=[];M.tx.forEach(t=>{if(t.t==="exp"&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d,tid:t.id},l)))});return r};
 function accBal(a){let v=+a.start||0;M.tx.forEach(x=>{if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
 // ---------- состояние экрана ----------
@@ -102,7 +102,7 @@ function head(P){
 function records(P){
   const by={};M.tx.forEach(t=>{if(inPer(t,P))(by[t.d]=by[t.d]||[]).push(t)});
   const days=Object.keys(by).sort().reverse();
-  const qrBtn=hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Сканировать чек (QR)</button>":"";
+  const qrBtn=hasQR()||hasPhoto()?'<div class="wrow">'+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Чек по QR</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-x2="photo">'+svg("camera")+"Фото чека</button>":"")+"</div>":"";
   const dueB=dueBanner();
   if(!days.length)return dueB+qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
   return dueB+qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
@@ -163,7 +163,7 @@ function detail(title,L,Lp,prevP,path,P){
    '<div class="dnums"><div><b>'+fmt(a)+" ₸</b>за период</div><div><b>"+L.length+"</b>покупок, "+days+" дн.</div>"+
    (q&&u?'<div><b>'+String(Math.round(q*10)/10).replace(".",",")+" "+u+"</b>всего</div><div><b>"+fmt(a/q)+" ₸/"+u+"</b>средняя цена</div>":'<div><b>'+fmt(a/L.length)+' ₸</b>средний чек</div><div><b>'+fmt(a/span)+" ₸</b>в среднем в день</div>")+"</div>"+
    (prevP?'<div class="kv"><span>'+(prevP.cut?"Те же "+prevP.cut+" дн. прошлого периода":"Прошлый период")+'</span><b class="'+(a>ap?"neg":"pos")+'">'+fmt(ap)+" ₸ "+(ap?(a>ap?"▲ ":"▼ ")+Math.abs(Math.round((a-ap)/ap*100))+"%":"")+"</b></div>":"")+
-   '<div class="hist">'+L.slice().sort((x,y)=>x.d<y.d?1:-1).slice(0,15).map(l=>"<div><span>"+short(l.d)+" · "+esc(l.n)+(l.q?" · "+l.q+" "+(l.u||""):"")+"</span><b>"+fmt(l.a)+"</b></div>").join("")+(L.length>15?'<div><span>и ещё '+(L.length-15)+"</span></div>":"")+"</div></div>";
+   '<div class="muted">Нажми на покупку, чтобы исправить количество или сумму.</div><div class="hist">'+L.slice().sort((x,y)=>x.d<y.d?1:-1).slice(0,15).map(l=>'<button type="button" class="hrow" data-edit="'+l.tid+'"><span>'+short(l.d)+" · "+esc(l.n)+(l.q?" · "+String(l.q).replace(".",",")+" "+(l.u||""):"")+"</span><b>"+fmt(l.a)+" ✎</b></button>").join("")+(L.length>15?'<div><span>и ещё '+(L.length-15)+"</span></div>":"")+"</div></div>";
 }
 
 // ---------- отчёты ----------
@@ -209,6 +209,7 @@ root.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;const d=b.dataset;
   if(d.x3==="cated"){if(window.openCatEditor)openCatEditor("exp");return}
   if(d.x2==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}return}
+  if(d.x2==="photo"){openSheet();Fm.photoAsk=true;renderSheet();return}
   if(d.sub){sub=d.sub;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
   if(d.per){per+=+d.per;Wv.item=null;openTx=null;renderMoney();return}
   if(d.edit){openSheet(M.tx.find(t=>t.id===+d.edit));return}
@@ -300,7 +301,9 @@ function renderSheet(){
   h+='<div class="quick"><input id="qtext" type="text" placeholder="Поиск или «пиво 900 чипсы 600»" aria-label="Быстрый ввод" value="'+esc(Fm.q)+'" autocomplete="off">'+
    (/\d/.test(Fm.q)?'<button type="button" class="qadd" data-x="qadd">Добавить</button>':"")+
    (hasVoice?'<button type="button" data-x="mic" aria-label="Сказать голосом">'+svg("mic")+"</button>":"")+
-   (hasQR()?'<button type="button" data-x="qr" aria-label="Сканировать QR чека">'+svg("qr")+"</button>":"")+"</div>";
+   (hasQR()?'<button type="button" data-x="qr" aria-label="Сканировать QR чека">'+svg("qr")+"</button>":"")+
+   (hasPhoto()?'<button type="button" data-x="photo" aria-label="Фото чека">'+svg("camera")+"</button>":"")+"</div>";
+  if(Fm.photoAsk)h+='<div class="pickrow"><button type="button" class="chipbtn" data-ph="cam">Сфотографировать чек</button><button type="button" class="chipbtn" data-ph="gal">Выбрать из галереи</button></div><div class="hint">Чек целиком в кадре, ровно, при хорошем свете. Длинный чек можно снять в два фото и добавить по очереди.</div>';
   if(Fm.msg)h+='<div class="foodlink voicebox">'+esc(Fm.msg).split("\n").map(x=>"<div>"+x+"</div>").join("")+"</div>";
   if(Fm.assign!=null&&Fm.lines[Fm.assign])h+='<div class="assign"><span>Выбери позицию для «<b>'+esc(Fm.lines[Fm.assign].raw||Fm.lines[Fm.assign].n||"")+'</b>»: найди в строке выше или выбери категорию ниже.</span><button type="button" class="chipbtn" data-x="unassign">Готово</button></div>';
   const found=Fm.q?findItems(Fm.q,Fm.t):[];
@@ -354,6 +357,8 @@ sheet.addEventListener("click",e=>{
   else if(d.as!=null){Fm.assign=+d.as;renderSheet();window.scrollTo(0,0);sheet.scrollTop=0}
   else if(d.x==="unassign"){Fm.assign=null;renderSheet()}
   else if(d.x==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}}
+  else if(d.x==="photo"){Fm.photoAsk=!Fm.photoAsk;renderSheet()}
+  else if(d.ph){Fm.photoAsk=false;try{Android.photo(d.ph)}catch(err){toast("Камера недоступна")}}
   else if(d.lx!=null){Fm.lines.splice(+d.lx,1);renderSheet()}
   else if(d.x==="own"){Fm.own=true;renderSheet();$("ownN").focus()}
   else if(d.x==="ownok"){const n=$("ownN").value.trim();if(!n)return;const c=catOf(Fm.c),sv=c.s.find(x=>x.n===Fm.s)||c.s[0];
@@ -530,6 +535,7 @@ setTimeout(pushNotif,1500);
 
 // ---------- чеки: API для receipt.js ----------
 const hasQR=()=>!!(window.Android&&Android.scanQR);
+const hasPhoto=()=>!!(window.Android&&Android.photo);
 window.MoneyAPI={M,svg,PALETTE,save,rerender:()=>{save();if(!$("pageMoney").hidden)renderMoney()},catOf,findItems,items:t=>itemIndex().filter(x=>x.t===t),
   loading(msg){Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,busy:msg};
     sheet.hidden=false;document.body.style.overflow="hidden";renderSheet()},

@@ -1,6 +1,20 @@
 package kz.sergey.gym;
 
 import android.app.Activity;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.media.ExifInterface;
+import android.provider.MediaStore;
+import androidx.core.content.FileProvider;
+import com.googlecode.tesseract.android.TessBaseAPI;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -49,6 +63,77 @@ public class MainActivity extends Activity {
     private FrameLayout rootView;
     private String pendingQuick = null, pendingNotif = null;
     private boolean pageReady = false;
+    private Uri camUri = null;
+
+    // словари tesseract из assets → в папку приложения (один раз)
+    private String tessDir() throws Exception {
+        File dir = new File(getFilesDir(), "tessdata");
+        if (!dir.exists()) dir.mkdirs();
+        for (String n : new String[]{"rus.traineddata", "eng.traineddata"}) {
+            File f = new File(dir, n);
+            if (f.exists() && f.length() > 0) continue;
+            try (InputStream in = getAssets().open("tessdata/" + n); OutputStream out = new FileOutputStream(f)) {
+                byte[] buf = new byte[65536];
+                int r;
+                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+            }
+        }
+        return getFilesDir().getAbsolutePath();
+    }
+
+    private Bitmap loadForOcr(Uri u) throws Exception {
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        try (InputStream in = getContentResolver().openInputStream(u)) { BitmapFactory.decodeStream(in, null, o); }
+        int max = Math.max(o.outWidth, o.outHeight), sample = 1;
+        while (max / sample > 3000) sample *= 2;
+        BitmapFactory.Options o2 = new BitmapFactory.Options();
+        o2.inSampleSize = sample;
+        Bitmap b;
+        try (InputStream in = getContentResolver().openInputStream(u)) { b = BitmapFactory.decodeStream(in, null, o2); }
+        int rot = 0;
+        try (InputStream in = getContentResolver().openInputStream(u)) {
+            int or = new ExifInterface(in).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            rot = or == ExifInterface.ORIENTATION_ROTATE_90 ? 90 : or == ExifInterface.ORIENTATION_ROTATE_180 ? 180 : or == ExifInterface.ORIENTATION_ROTATE_270 ? 270 : 0;
+        } catch (Exception ignored) { }
+        if (rot != 0) {
+            Matrix m = new Matrix();
+            m.postRotate(rot);
+            b = Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
+        }
+        // серый и контраст: термобумага бледная
+        Bitmap g = Bitmap.createBitmap(b.getWidth(), b.getHeight(), Bitmap.Config.ARGB_8888);
+        ColorMatrix cm = new ColorMatrix();
+        cm.setSaturation(0);
+        float c = 1.6f, t = -0.3f * 255;
+        ColorMatrix con = new ColorMatrix(new float[]{c,0,0,0,t, 0,c,0,0,t, 0,0,c,0,t, 0,0,0,1,0});
+        cm.postConcat(con);
+        Paint p = new Paint();
+        p.setColorFilter(new ColorMatrixColorFilter(cm));
+        new Canvas(g).drawBitmap(b, 0, 0, p);
+        return g;
+    }
+
+    private void runOcr(final Uri u) {
+        js("window.onOcrStart&&onOcrStart()");
+        new Thread(() -> {
+            String text = null;
+            TessBaseAPI tess = new TessBaseAPI();
+            try {
+                Bitmap bmp = loadForOcr(u);
+                if (tess.init(tessDir(), "rus+eng")) {
+                    tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN);
+                    tess.setImage(bmp);
+                    text = tess.getUTF8Text();
+                }
+            } catch (Throwable e) {
+                text = null;
+            } finally {
+                try { tess.recycle(); } catch (Throwable ignored) { }
+            }
+            js("window.onOcr&&onOcr(" + (text == null ? "null" : JSONObject.quote(text)) + ")");
+        }).start();
+    }
 
     // уведомление-виджет: «+ Доход / + Расход / Чек» и итог дня
     private PendingIntent quickIntent(String k, int code) {
@@ -237,6 +322,28 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void photo(final String src) {
+            runOnUiThread(() -> {
+                try {
+                    if ("gal".equals(src)) {
+                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.setType("image/*");
+                        startActivityForResult(Intent.createChooser(i, "Фото чека"), 92);
+                    } else {
+                        File f = new File(getCacheDir(), "receipt.jpg");
+                        camUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                        Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                        i.putExtra(MediaStore.EXTRA_OUTPUT, camUri);
+                        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivityForResult(i, 91);
+                    }
+                } catch (Exception e) {
+                    js("window.wToast&&wToast('Камера недоступна')");
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void scanQR() {
             runOnUiThread(() -> {
                 try {
@@ -421,6 +528,8 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == 77) js("window.onStepsPerm&&onStepsPerm()");
+        if (req == 91 && res == RESULT_OK && camUri != null) runOcr(camUri);
+        if (req == 92 && res == RESULT_OK && data != null && data.getData() != null) runOcr(data.getData());
         if (req == 88 && res == RESULT_OK && data != null) {
             ArrayList<String> r = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (r != null && !r.isEmpty()) js("window.onVoice&&onVoice(" + JSONObject.quote(r.get(0)) + ")");

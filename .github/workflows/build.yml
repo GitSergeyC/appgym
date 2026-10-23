@@ -11,6 +11,12 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
+      - name: Tesseract data
+        run: |
+          mkdir -p app/src/main/assets/tessdata
+          curl -sSL -o app/src/main/assets/tessdata/rus.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/rus.traineddata
+          curl -sSL -o app/src/main/assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+          ls -la app/src/main/assets/tessdata
       - name: Build
         run: |
           set -o pipefail
@@ -21,5 +27,5 @@ jobs:
       - name: Publish release
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          TAG="v1.10.${{ github.run_number }}"
+          TAG="v1.11.${{ github.run_number }}"
           gh release create "$TAG" Zal.apk --title "Зал $TAG" --notes "Установочный файл приложения" --latest
