@@ -8,6 +8,7 @@
         <package android:name="com.google.android.youtube"/>
         <package android:name="com.google.android.apps.youtube.music"/>
         <package android:name="com.google.android.apps.healthdata"/>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH"/></intent>
     </queries>
     <application android:label="Зал" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:allowBackup="true" android:theme="@style/AppTheme">

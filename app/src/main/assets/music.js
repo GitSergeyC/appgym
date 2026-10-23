@@ -2,10 +2,13 @@
 (function(){
 const bar=document.getElementById("mbar");
 const ok=!!(window.Android&&Android.musicState);
-if(!ok){bar.hidden=true;return}
-bar.hidden=false;
 const root=document.documentElement;
-const setH=()=>root.style.setProperty("--mb",bar.offsetHeight+"px");
+const active=()=>!!(S.workout&&S.workout.on);
+const setH=()=>root.style.setProperty("--mb",bar.hidden?"0px":bar.offsetHeight+"px");
+// плеер виден только во время тренировки
+window.musicShow=function(){bar.hidden=!(ok&&active());setH();if(!bar.hidden)poll()};
+bar.hidden=true;
+if(!ok){window.musicShow=function(){root.style.setProperty("--mb","0px")};return}
 try{new ResizeObserver(setH).observe(bar)}catch(e){}
 setH();
 
@@ -24,7 +27,7 @@ function render(){
     g("mTitle").textContent="Ничего не играет";g("mSub").textContent="Запусти плеер кнопкой ниже";hint.hidden=true;
     if(g("mApps").hidden)apps(true);
   }else{
-    g("mTitle").textContent=st.title||"Без названия";
+    g("mTitle").textContent=st.title||(st.app?st.app+" — играет":"Играет");
     g("mSub").textContent=[st.artist,st.app].filter(Boolean).join(" · ");hint.hidden=true;
   }
   g("mPlayIco").innerHTML='<path d="'+(st.playing?PAUSE:PLAY)+'"/>';
@@ -34,7 +37,7 @@ function render(){
   setH();
 }
 function poll(){
-  if(document.hidden)return;
+  if(document.hidden||bar.hidden)return;
   try{st=JSON.parse(Android.musicState())||{}}catch(e){st={}}
   render();
 }
@@ -47,5 +50,5 @@ g("mInfo").onclick=()=>apps(g("mApps").hidden);
 g("mApps").addEventListener("click",ev=>{const b=ev.target.closest("button");if(!b)return;
   try{Android.openApp(b.dataset.pkg)}catch(e){}});
 document.addEventListener("visibilitychange",poll);
-poll();setInterval(poll,1500);
+setInterval(poll,1500);window.musicShow();
 })();

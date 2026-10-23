@@ -46,7 +46,7 @@ const num=v=>{const x=parseFloat(String(v).replace(",","."));return isFinite(x)?
 const r0=x=>Math.round(x),r1=x=>Math.round(x*10)/10;
 const goalK=()=>r0(S.goal.p*4+S.goal.f*9+S.goal.c*4);
 const findByName=n=>S.base.find(x=>x.n===n);
-const macroLine=x=>r0(x.k)+" ккал · Б"+r1(x.p)+" Ж"+r1(x.f)+" У"+r1(x.c);
+const macroLine=x=>r0(x.k)+" ккал · Б"+r1(x.p)+" Ж"+r1(x.f)+" У"+r1(x.c)+(x.pkg?" · "+Math.round(x.pkg).toLocaleString("ru-RU")+" ₸/кг":"");
 
 let day=new Date();day.setHours(12,0,0,0);
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -61,16 +61,16 @@ function totals(key){const t={k:0,p:0,f:0,c:0,n:0};(S.food[key]||[]).forEach(e=>
 const status=k=>{const g=goalK();return k>g*1.1?"hi":k>=g*0.9?"ok":"lo"};
 
 // навигация
-const PAGES={train:["pageTrain","navTrain"],food:["pageFood","navFood"],base:["pageBase","navBase"],stats:["pageStats","navStats"]};
+const PAGES={train:["pageTrain","navTrain"],food:["pageFood","navFood"],money:["pageMoney","navMoney"],base:["pageBase","navBase"],stats:["pageStats","navStats"]};
 function showPage(name){
   if(!PAGES[name])name="train";
   for(const k in PAGES){$(PAGES[k][0]).hidden=k!==name;$(PAGES[k][1]).setAttribute("aria-selected",k===name)}
-  $("timer").hidden=name!=="train";
+  $("timer").hidden=name!=="train"||!(S.workout&&S.workout.on);
   try{localStorage.setItem(KEY+"-page",name)}catch(e){}
-  if(name==="food")renderFood();if(name==="base")renderBase();if(name==="stats"&&window.renderStats)renderStats();
+  if(name==="food")renderFood();if(name==="base")renderBase();if(name==="stats"&&window.renderStats)renderStats();if(name==="money"&&window.renderMoney)renderMoney();if(name==="train"&&window.renderWorkout)renderWorkout();
   window.scrollTo(0,0);
 }
-$("navTrain").onclick=()=>showPage("train");$("navFood").onclick=()=>showPage("food");$("navBase").onclick=()=>showPage("base");$("navStats").onclick=()=>showPage("stats");
+$("navTrain").onclick=()=>showPage("train");$("navFood").onclick=()=>showPage("food");$("navBase").onclick=()=>showPage("base");$("navStats").onclick=()=>showPage("stats");$("navMoney").onclick=()=>showPage("money");
 $("dPrev").onclick=()=>{day.setDate(day.getDate()-1);calM=new Date(day);renderFood()};
 $("dNext").onclick=()=>{day.setDate(day.getDate()+1);calM=new Date(day);renderFood()};
 
@@ -202,7 +202,7 @@ function openBase(item){
   $("bTitle").textContent=item?"Изменить продукт":"Новый продукт";
   $("bName").value=item?item.n:$("bq").value.trim();
   $("bK").value=item?item.k:"";$("bP").value=item?item.p:"";$("bF").value=item?item.f:"";$("bC").value=item?item.c:"";
-  $("bB").value=item&&item.b||"";$("bDel").hidden=!item;$("bDel").textContent="Удалить";
+  $("bB").value=item&&item.b||"";$("bPk").value=item&&item.pkg||"";$("bPw").value=item&&item.pw||"";$("bDel").hidden=!item;$("bDel").textContent="Удалить";
   $("bMsg").hidden=true;$("bForm").hidden=false;window.scrollTo(0,0);$("bName").focus();
 }
 $("bq").addEventListener("input",renderBase);
@@ -211,6 +211,8 @@ $("bList").addEventListener("click",ev=>{const b=ev.target.closest("button");if(
 $("bCancel").onclick=()=>{$("bForm").hidden=true;editName=null};
 $("bForm").addEventListener("submit",ev=>{
   ev.preventDefault();const it=readProd("b");if(!it.n)return;
+  const old=editName!=null?findByName(editName):null;if(old){if(old.pd)it.pd=old.pd}
+  const pk=num($("bPk").value),pw=num($("bPw").value);if(pk>0)it.pkg=Math.round(pk);if(pw>0)it.pw=pw;
   const b=$("bB").value.trim();if(b)it.b=b;
   const clash=S.base.find(x=>x.n===it.n&&x.n!==editName);
   if(clash){$("bMsg").textContent="Продукт с таким названием уже есть. Измени название или отредактируй тот.";$("bMsg").hidden=false;return}

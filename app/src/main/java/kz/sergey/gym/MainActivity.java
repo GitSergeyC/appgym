@@ -11,6 +11,8 @@ import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.provider.Settings;
+import android.speech.RecognizerIntent;
+import java.util.ArrayList;
 import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
@@ -163,6 +165,18 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void voice() {
+            runOnUiThread(() -> {
+                Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+                i.putExtra(RecognizerIntent.EXTRA_PROMPT, "Например: пиво 900, чипсы 600");
+                try { startActivityForResult(i, 88); }
+                catch (Exception e) { js("window.onVoice&&onVoice(null)"); }
+            });
+        }
+
+        @JavascriptInterface
         public void stepsConnect() {
             runOnUiThread(() -> {
                 try {
@@ -255,6 +269,10 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == 77) js("window.onStepsPerm&&onStepsPerm()");
+        if (req == 88 && res == RESULT_OK && data != null) {
+            ArrayList<String> r = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (r != null && !r.isEmpty()) js("window.onVoice&&onVoice(" + JSONObject.quote(r.get(0)) + ")");
+        }
     }
 
     @Override
