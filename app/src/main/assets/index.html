@@ -365,6 +365,14 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .hrow{display:flex;justify-content:space-between;gap:8px;width:100%;border:none;border-top:1px solid var(--line);background:none;color:var(--muted);padding:7px 0;font:13px var(--body);text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
 .hrow b{color:var(--fg);font-weight:500;white-space:nowrap}
 .qrbig{font-size:15px!important;padding:13px 8px!important}
+.kin{border-color:var(--accent)}
+.kinrow{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+.kinrow:nth-child(2){border-top:none;padding-top:0}
+.kinrow .nm{min-width:0}
+.kinrow .nm b{display:block;font-weight:500;font-size:14px}
+.kinrow .nm small{display:block;color:var(--muted);font-size:12px}
+.kinrow .am{font:600 16px var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kbtns{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
 .wrap{padding-bottom:calc(150px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -764,5 +772,6 @@ tb.onclick=()=>{
 <script src="money.js"></script>
 <script src="receipt.js"></script>
 <script src="cateditor.js"></script>
+<script src="kaspi.js"></script>
 <script src="workout.js"></script>
 </body></html>

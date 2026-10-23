@@ -344,6 +344,18 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean listenerOn() { return hasMusicPerm(); }
+
+        // забрать накопленные уведомления Kaspi и очистить очередь
+        @JavascriptInterface
+        public String kaspiInbox() {
+            android.content.SharedPreferences sp = getSharedPreferences("kaspi", MODE_PRIVATE);
+            String q = sp.getString("q", "[]");
+            sp.edit().putString("q", "[]").apply();
+            return q;
+        }
+
+        @JavascriptInterface
         public void scanQR() {
             runOnUiThread(() -> {
                 try {
