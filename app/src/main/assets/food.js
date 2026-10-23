@@ -194,7 +194,9 @@ $("prodForm").addEventListener("submit",ev=>{
 // вкладка «База»
 let editName=null,delArmed=false;
 function renderBase(){
-  const q=$("bq").value.trim();const list=q?search(q):S.base;
+  const q=$("bq").value.trim();const list0=q?search(q):S.base;
+  // сначала продукты с ценой, потом без цены (внутри групп порядок прежний)
+  const list=list0.filter(x=>x.pkg).concat(list0.filter(x=>!x.pkg));
   $("bCount").textContent="Продуктов в базе: "+S.base.length+". Нажми на продукт, чтобы изменить или удалить.";
   $("bList").innerHTML=list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+priceTag(x)+(x.b?'<span class="bc">▮ '+esc(x.b)+'</span>':"")+
     '</span><span>'+macroLine(x)+'</span></button>').join("")||'<div class="msg">Ничего не нашёл.</div>';
