@@ -379,6 +379,26 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .ptitle:focus-visible{outline:2px solid var(--accent)}
 .hero .back{align-self:center;background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .pp{border-color:var(--accent)}
+.micbtn{padding:10px 12px!important;display:flex;align-items:center}
+.micbtn svg{width:20px;height:20px}
+.fvoice{background:var(--accent-soft);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.fvoice .heard{font-size:13px;color:var(--muted)}
+.fl2{display:grid;grid-template-columns:1fr 78px 54px 26px;gap:6px;align-items:center;font-size:14px}
+.fl2 .nm{min-width:0;overflow-wrap:anywhere}
+.fl2 .nm small{display:block;color:var(--muted);font-size:11px}
+.fl2 .inp{padding:6px 8px;text-align:right}
+.fl2 .kc{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.fl2 .x{border:none;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0}
+.fl2 .pickp{border:1px dashed var(--warn);background:none;color:var(--warn);border-radius:8px;padding:4px 8px;font:500 13px var(--body);cursor:pointer;text-align:left}
+.dishrow{display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+.dishrow:first-of-type{border-top:none;padding-top:0}
+.dishrow .nm{min-width:0}
+.dishrow .nm b{display:block;font-weight:500}
+.dishrow .nm small{display:block;color:var(--muted);font-size:12px}
+.dishrow .inp{padding:7px 8px;text-align:right}
+.dtot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dtot div{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.dtot b{display:block;font:600 19px var(--display);color:var(--fg);font-variant-numeric:tabular-nums}
 .wrap{padding-bottom:calc(150px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -524,8 +544,10 @@ body{margin:0}
     <div class="addrow">
       <input class="inp" id="q" type="search" placeholder="Поиск: курица, рис, творог…" autocomplete="off">
       <button class="btn" id="scanBtn" type="button" hidden>Штрихкод</button>
+      <button class="btn micbtn" id="fMic" type="button" hidden aria-label="Сказать, что съел"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
     </div>
     <div class="msg" id="scanMsg" hidden></div>
+    <div class="fvoice" id="fvoice" hidden></div>
     <div class="pick" id="pick" hidden>
       <div class="ttl" id="pickName"></div>
       <div class="pickrow">
@@ -556,6 +578,8 @@ body{margin:0}
       </div>
     </form>
   </section>
+
+  <section class="card" id="dishCard" aria-label="Блюда"></section>
 
   <section class="card">
     <div class="label">Съедено за день</div>
@@ -598,6 +622,7 @@ body{margin:0}
   <button type="button" role="tab" id="navBase" aria-selected="false"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>База</button>
 </div></nav>
 <div class="msheet" id="msheet" hidden></div>
+<div class="msheet" id="dsheet" hidden></div>
 <div class="toast" id="toast" hidden></div>
 <div class="mbar" id="mbar" hidden>
   <div class="mrow">
@@ -779,5 +804,6 @@ tb.onclick=()=>{
 <script src="receipt.js"></script>
 <script src="cateditor.js"></script>
 <script src="kaspi.js"></script>
+<script src="dish.js"></script>
 <script src="workout.js"></script>
 </body></html>
