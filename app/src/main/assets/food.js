@@ -46,11 +46,12 @@ const num=v=>{const x=parseFloat(String(v).replace(",","."));return isFinite(x)?
 const r0=x=>Math.round(x),r1=x=>Math.round(x*10)/10;
 const goalK=()=>r0(S.goal.p*4+S.goal.f*9+S.goal.c*4);
 const findByName=n=>S.base.find(x=>x.n===n);
-const macroLine=x=>r0(x.k)+" ккал · Б"+r1(x.p)+" Ж"+r1(x.f)+" У"+r1(x.c)+(x.pkg?" · "+Math.round(x.pkg).toLocaleString("ru-RU")+" ₸/кг":"");
+const macroLine=x=>r0(x.k)+" ккал · Б"+r1(x.p)+" Ж"+r1(x.f)+" У"+r1(x.c);
+const priceTag=x=>x.pkg?'<b class="price">'+Math.round(x.pkg).toLocaleString("ru-RU")+" ₸/кг</b>":"";
 
-let day=new Date();day.setHours(12,0,0,0);
+let day=bizNow();day.setHours(12,0,0,0);
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const todayNoon=()=>{const t=new Date();t.setHours(12,0,0,0);return t};
+const todayNoon=()=>{const t=bizNow();t.setHours(12,0,0,0);return t};
 function dayLabel(){
   const diff=Math.round((day-todayNoon())/864e5);
   if(diff===0)return"Сегодня";if(diff===-1)return"Вчера";if(diff===1)return"Завтра";
@@ -137,7 +138,7 @@ function renderResults(){
   const q=$("q").value.trim();
   const list=q?search(q).slice(0,30):S.recent.map(findByName).filter(Boolean).slice(0,10);
   const head=!q&&list.length?'<div class="msg">Недавние</div>':"";
-  $("results").innerHTML=head+list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+
+  $("results").innerHTML=head+list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+priceTag(x)+
     '</span><span>'+macroLine(x)+'</span></button>').join("")+
     (q&&!list.length?'<div class="msg">Ничего не нашёл. Добавь как свой продукт.</div>':"");
 }
@@ -194,7 +195,7 @@ let editName=null,delArmed=false;
 function renderBase(){
   const q=$("bq").value.trim();const list=q?search(q):S.base;
   $("bCount").textContent="Продуктов в базе: "+S.base.length+". Нажми на продукт, чтобы изменить или удалить.";
-  $("bList").innerHTML=list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+(x.b?'<span class="bc">▮ '+esc(x.b)+'</span>':"")+
+  $("bList").innerHTML=list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+priceTag(x)+(x.b?'<span class="bc">▮ '+esc(x.b)+'</span>':"")+
     '</span><span>'+macroLine(x)+'</span></button>').join("")||'<div class="msg">Ничего не нашёл.</div>';
 }
 function openBase(item){

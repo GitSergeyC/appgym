@@ -330,6 +330,14 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 12px;animation:sp 0.9s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.res .price,.bprice{display:inline-block;margin-left:8px;background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:0 7px;font:600 13px var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.loan{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.loan:first-of-type{border-top:none;padding-top:0}
+.loanh{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.loanh b{font-size:15px}
+.loanh span{font:600 15px var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.due{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
+.due.late{border-color:var(--warn)}
 .wrap{padding-bottom:calc(150px + var(--mb,0px))}
 body{margin:0}
 [hidden]{display:none!important}
@@ -622,7 +630,9 @@ const slots=()=>Object.keys(PLAN).length*4;
 let tab="A";try{tab=localStorage.getItem(KEY+"-tab")||"A"}catch(e){}
 if(!PLAN[tab])tab=Object.keys(PLAN)[0];
 
-function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+// день заканчивается в S.dayEnd часов ночи (по умолчанию 4:00): чаевые после полуночи — во «вчера»
+function bizNow(){const h=S.dayEnd==null?4:+S.dayEnd;return new Date(Date.now()-h*3600e3)}
+function todayKey(){const d=bizNow();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 const esc0=t=>String(t).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 // подсказка веса: прошлая неделя этого месяца, иначе последний месяц из истории
 function prevW(id,w){

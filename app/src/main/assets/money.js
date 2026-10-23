@@ -6,7 +6,9 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const M=S.money=S.money||{};
 if(!M.cats)M.cats={exp:clone(MCAT.EXP),inc:clone(MCAT.INC)};
 if(!M.acc)M.acc=[{id:"cash",n:"Наличные",i:"cash",c:"#6cd39a",start:0},{id:"kaspi",n:"Kaspi Gold",i:"card",c:"#f08a7e",start:0}];
-M.tx=M.tx||[];M.budget=M.budget||0;M.sal=M.sal||{from:15,to:18};M.nid=M.nid||1;
+M.tx=M.tx||[];M.budget=M.budget||0;M.sal=M.sal||{from:15,to:18};M.nid=M.nid||1;M.loans=M.loans||[];
+// чаевые — первая категория дохода
+if(!M.cats.inc.some(c=>c.id==="tips"))M.cats.inc.unshift({id:"tips",n:"Чаевые",i:"coins",c:"#f0c46a",s:[{n:"Чаевые",it:[{n:"Наличными"},{n:"На карту"}]}]});
 save();
 
 // продукты для связи с деньгами, которых не было в базе питания
@@ -32,7 +34,7 @@ const addDays=(k,n)=>{const d=parse(k);d.setDate(d.getDate()+n);return keyOf(d)}
 const addMonth=k=>{const d=parse(k);d.setMonth(d.getMonth()+1);return keyOf(d)};
 const short=k=>parse(k).toLocaleDateString("ru-RU",{day:"numeric",month:"short"}).replace(".","");
 const wday=k=>parse(k).toLocaleDateString("ru-RU",{weekday:"long"});
-const today=()=>keyOf(new Date());
+const today=()=>keyOf(bizNow());
 const toast=m=>window.wToast&&wToast(m);
 const allCats=()=>M.cats.exp.concat(M.cats.inc);
 const MIXED={id:"mixed",n:"Покупка",i:"basket",c:"#9fb3c8",s:[]};
@@ -74,8 +76,9 @@ document.body.appendChild(fab);fab.hidden=true;fab.onclick=()=>openSheet();
 
 window.renderMoney=function(){
   if(per==null||!periodOf(per))per=curPer();
-  fab.hidden=$("pageMoney").hidden||sub==="edit";
+  fab.hidden=$("pageMoney").hidden||sub==="edit"||sub==="loan";
   if(sub==="edit"){root.innerHTML=editor();return}
+  if(sub==="loan"){root.innerHTML=loanForm();return}
   const P=periodOf(per);
   root.innerHTML=head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P));
 };
@@ -100,8 +103,9 @@ function records(P){
   const by={};M.tx.forEach(t=>{if(inPer(t,P))(by[t.d]=by[t.d]||[]).push(t)});
   const days=Object.keys(by).sort().reverse();
   const qrBtn=hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Сканировать чек (QR)</button>":"";
-  if(!days.length)return qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
-  return qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
+  const dueB=dueBanner();
+  if(!days.length)return dueB+qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
+  return dueB+qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
     return '<div class="daycard"><div class="dayh"><b>'+short(d)+' <span style="font-weight:400">'+wday(d)+"</span></b><span>"+(e?"−"+fmt(e):"")+(e&&i?" · ":"")+(i?'<span class="pos">+'+fmt(i)+"</span>":"")+"</span></div>"+
       by[d].slice().reverse().map(txRow).join("")+"</div>"}).join("");
 }
@@ -177,7 +181,7 @@ function reports(P){
    '<div class="kv"><span>Алкоголь и закуски</span><b>'+fmt(sum(l=>l.s==="Алкоголь"||l.s==="Снеки и закуски"))+'</b></div>'+
    '<div class="kv"><span>Сигареты</span><b>'+fmt(sum(l=>l.s==="Сигареты"))+'</b></div></div>'+
    '<div class="card"><div class="label">Счета</div>'+M.acc.map(a=>'<div class="accrow"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+"</span><b>"+fmt(accBal(a))+" ₸</b></div>").join("")+"</div>"+
-   '<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
+   loansCard()+'<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
   return h;
 }
 
@@ -189,6 +193,9 @@ function editor(){
   let h='<div class="edhead"><button type="button" class="chipbtn" data-sub="rep">‹ Назад</button><b>Настройки денег</b></div>'+
    '<div class="card"><div class="label">Учётный месяц</div><div class="muted">Период начинается в день, когда записана зарплата (кроме аванса). Окно зарплаты нужно для подсказки «до зарплаты N дней».</div>'+
    '<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr"><label>Зарплата с<input class="inp" id="salF" inputmode="numeric" value="'+M.sal.from+'"></label><label>по число<input class="inp" id="salT" inputmode="numeric" value="'+M.sal.to+'"></label><label>Бюджет, ₸<input class="inp" id="bud" inputmode="numeric" placeholder="нет" value="'+(M.budget||"")+'"></label></div></div>'+
+   '<div class="card"><div class="label">Рабочий день</div><div class="muted">До этого часа ночи записи идут во вчерашний день: чаевые после полуночи, поздний ужин, тренировка. Касается денег, питания и зала.</div>'+
+   '<label class="fl">День заканчивается в<select class="inp" id="dayEnd">'+[0,1,2,3,4,5,6].map(h=>'<option value="'+h+'"'+((S.dayEnd==null?4:+S.dayEnd)===h?" selected":"")+">"+h+":00"+(h===0?" (полночь)":"")+"</option>").join("")+"</select></label></div>"+
+   (window.Android&&Android.notify?'<div class="card"><div class="label">Виджет в шторке</div><label class="chk"><input type="checkbox" id="notifOn"'+(M.notif!==false?" checked":"")+'>Показывать «+ Доход / + Расход / Чек» и итог дня в уведомлениях</label></div>':"")+
    '<div class="card"><div class="label">Счета</div><div class="muted">Начальный остаток — сколько было на счёте до первой записи.</div>'+
    M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Начальный, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+(a.start||0)+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
    '<button type="button" class="chipbtn" data-aadd="1">+ Счёт</button></div>'+
@@ -238,6 +245,8 @@ root.addEventListener("click",e=>{
   if(d.adel){if(M.acc.length<2){toast("Нужен хотя бы один счёт");return}if(!armOr("a"+d.adel))return;M.acc.splice(+d.adel,1);rerender();return}
 });
 root.addEventListener("change",e=>{const t=e.target,d=t.dataset,cats=M.cats[edT];
+  if(t.id==="dayEnd"){S.dayEnd=+t.value;save();toast("Готово. Перезапусти приложение, чтобы питание тоже пересчиталось");rerender();return}
+  if(t.id==="notifOn"){M.notif=t.checked;save();pushNotif();return}
   if(t.id==="salF"){M.sal.from=Math.min(28,Math.max(1,+t.value||15));rerender()}
   else if(t.id==="salT"){M.sal.to=Math.min(31,Math.max(1,+t.value||18));rerender()}
   else if(t.id==="bud"){M.budget=+String(t.value).replace(/\D/g,"")||0;rerender()}
@@ -279,7 +288,7 @@ const sheet=$("msheet");
 let Fm={};
 function openSheet(tx){
   if(tx){Fm={edit:tx.id,t:tx.t,c:tx.t==="tr"?null:(tx.c==="mixed"?(tx.lines[0]||{}).c:tx.c),s:null,
-      lines:(tx.lines||[]).map(l=>Object.assign({},l,{a:String(l.a),q:l.q?String(l.q):""})),acc:tx.acc||tx.from,to:tx.to||"",a:tx.t==="tr"?String(tx.a):"",d:tx.d,foodOn:!!tx.foodLink||tx.t!=="exp",q:"",note:tx.note||"",own:null}}
+      lines:(tx.lines||[]).map(l=>Object.assign({},l,{a:String(l.a),q:l.q?String(l.q):""})),acc:tx.acc||tx.from,to:tx.to||"",a:tx.t==="tr"?String(tx.a):"",d:tx.d,foodOn:!!tx.foodLink||tx.t!=="exp",q:"",note:tx.note||"",own:null,loan:tx.loan||null}}
   else Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,assign:null};
   sheet.hidden=false;document.body.style.overflow="hidden";renderSheet();
 }
@@ -309,6 +318,8 @@ function renderSheet(){
   h+='<div class="grid">'+cats.map(x=>'<button type="button" class="cat" data-c="'+x.id+'" aria-pressed="'+(Fm.c===x.id)+'"><span class="ic"'+(Fm.c===x.id?' style="background:'+x.c+'"':"")+">"+svg(x.i)+"</span>"+esc(x.n)+"</button>").join("")+"</div>";
   if(c){
     h+='<div class="crumbs2"><b>'+esc(c.n)+"</b>"+(subc?" › <b>"+esc(subc.n)+"</b>":"")+"</div>";
+    const act=M.loans.filter(L=>loanActive(L)||L.id===Fm.loan);
+    if(c.id==="credit"&&act.length)h+='<div class="label">Платёж по кредиту</div><div class="chips">'+act.map(L=>'<button type="button" data-loan="'+L.id+'" aria-pressed="'+(Fm.loan===L.id)+'">'+esc(L.n)+" · "+fmt(L.pay)+"</button>").join("")+"</div>";
     if(c.s.length>1)h+='<div class="chips">'+c.s.map(x=>'<button type="button" data-s="'+esc(x.n)+'" aria-pressed="'+(Fm.s===x.n)+'">'+esc(x.n)+"</button>").join("")+"</div>";
     const sv=subc||(c.s.length===1?c.s[0]:null);
     if(sv){h+='<div class="chips items">'+sv.it.map((it,i)=>'<button type="button" class="'+(it.f?"food":"")+'" data-it="'+i+'" data-sn="'+esc(sv.n)+'">+ '+esc(it.n)+"</button>").join("")+'<button type="button" data-x="own">+ своя позиция</button></div>';
@@ -342,7 +353,8 @@ sheet.addEventListener("click",e=>{const r=e.target.closest(".raw");if(r){Fm.ass
 function focusLast(){const ins=sheet.querySelectorAll("[data-la]");if(ins.length)ins[ins.length-1].focus()}
 sheet.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;grab();const d=b.dataset;
-  if(d.ft){Fm.t=d.ft;Fm.c=null;Fm.s=null;Fm.lines=[];Fm.q="";renderSheet()}
+  if(d.ft){setType(d.ft);renderSheet()}
+  else if(d.loan){const L=M.loans.find(x=>x.id===+d.loan);if(L)fillLoan(L);renderSheet()}
   else if(d.c){Fm.c=d.c;const c=catOf(Fm.c);Fm.s=c.s.length===1?c.s[0].n:null;Fm.own=null;renderSheet()}
   else if(d.s!=null){Fm.s=d.s;Fm.own=null;renderSheet()}
   else if(d.it!=null){const c=catOf(Fm.c),sv=c.s.find(x=>x.n===d.sn);if(Fm.assign!=null)assignTo(Fm.c,sv.n,sv.it[+d.it]);else{addLine(Fm.c,sv.n,sv.it[+d.it]);renderSheet();focusLast()}}
@@ -359,6 +371,9 @@ sheet.addEventListener("click",e=>{
   else if(d.x==="mic"){try{Android.voice()}catch(err){toast("Голосовой ввод недоступен")}}
   else if(d.x==="save")saveSheet();
 });
+function setType(t){Fm.t=t;Fm.c=null;Fm.s=null;Fm.lines=[];Fm.q="";Fm.loan=null;
+  if(t==="inc"){const tp=M.cats.inc.find(c=>c.id==="tips");if(tp){Fm.c="tips";Fm.s=tp.s[0].n;const cash=M.acc.find(a=>a.id==="cash");if(cash)Fm.acc=cash.id}}}
+function fillLoan(L){Fm.loan=L.id;Fm.c="credit";Fm.s=L.type==="inst"?"Рассрочки":"Кредиты";Fm.lines=[{c:"credit",s:Fm.s,n:L.n,a:String(L.pay)}];if(!Fm.note)Fm.note=L.n}
 function saveSheet(){
   let tx;
   if(Fm.t==="tr"){const a=+Fm.a;if(!a){toast("Впиши сумму");return}if(Fm.acc===Fm.to){toast("Выбери разные счета");return}
@@ -374,13 +389,16 @@ function saveSheet(){
     if(Fm.note.trim()){tx.note=Fm.note.trim();if(lines.length>1)tx.receipt=tx.note}
     if(Fm.t==="exp"&&Fm.foodOn&&lines.some(l=>l.f&&EAT_CATS.includes(l.c)))tx.foodLink=true;
     if(Fm.qr)tx.qr=Fm.qr;
+    if(Fm.loan&&tx.c==="credit")tx.loan=Fm.loan;
   }
   if(Fm.edit){const old=M.tx.find(x=>x.id===Fm.edit);unlinkFood(old);tx.id=Fm.edit;M.tx[M.tx.indexOf(old)]=tx}
   else{tx.id=M.nid++;M.tx.push(tx)}
   if(tx.t==="exp"){updatePrices(tx);linkFood(tx);if(window.rememberReceipt)rememberReceipt(tx,Fm.lines.filter(l=>l.raw&&l.c!=="other"))}
   save();closeSheet();sub="rec";openTx=null;per=curPer();
   const idx=starts().findIndex((s,i,a)=>tx.d>=s&&(i===a.length-1||tx.d<a[i+1]));if(idx>=0)per=idx;
-  renderMoney();toast(Fm.edit?"Изменено":tx.foodLink?"Записано в деньги и в питание":"Записано");
+  renderMoney();pushNotif();
+  if(tx.loan){const L=M.loans.find(x=>x.id===tx.loan);if(L){const p=loanPaid(L);toast(p>=L.total?"«"+L.n+"» закрыт: все "+L.total+" платежей внесены":"Платёж "+p+" из "+L.total+". Осталось "+(L.total-p));return}}
+  toast(Fm.edit?"Изменено":tx.foodLink?"Записано в деньги и в питание":"Записано");
 }
 // быстрый ввод: «пиво 900 чипсы 600», «вчера такси 1800», «донер 2к»
 function parseQuick(text,commitAll){
@@ -412,6 +430,82 @@ window.onVoice=function(text){
   if(r.added){Fm.q="";renderSheet();toast("Услышал: «"+text+"»")}
   else{Fm.q=text.replace(/\d+/g,"").trim();renderSheet();toast("Услышал: «"+text+"». Выбери позицию из списка")}
 };
+// ---------- кредиты и рассрочки ----------
+let loanEdit=null,loanArm=false,showClosed=false;
+const loanPaid=L=>(+L.paid0||0)+M.tx.filter(t=>t.loan===L.id).length;
+const loanActive=L=>loanPaid(L)<L.total;
+function nextDue(L){const t=parse(today());let d=new Date(t.getFullYear(),t.getMonth(),Math.min(L.day||1,28),12);
+  const last=M.tx.filter(x=>x.loan===L.id).map(x=>x.d).sort().pop();
+  // если платёж уже внесён в этом цикле (за 20 дней до даты или позже) — следующий месяц
+  if(last&&parse(last)>=new Date(d.getTime()-20*864e5))d.setMonth(d.getMonth()+1);
+  // платежей в приложении ещё нет и дата прошла — считаем, что этот месяц оплачен до начала учёта
+  else if(!last&&d<t)d.setMonth(d.getMonth()+1);
+  return keyOf(d)}
+function dueBanner(){
+  const t=today();return M.loans.filter(loanActive).map(L=>{const d=nextDue(L),days=Math.round((parse(d)-parse(t))/864e5);
+    if(days>3)return"";const late=days<0;
+    return '<div class="due'+(late?" late":"")+'"><span><b>'+esc(L.n)+"</b><br>"+(late?"Платёж просрочен с "+short(d):days===0?"Платёж сегодня":"Платёж "+short(d)+", через "+days+" дн.")+" · "+fmt(L.pay)+' ₸</span><button type="button" class="chipbtn" data-pay="'+L.id+'">Внести</button></div>'}).join("")}
+function loansCard(){
+  const act=M.loans.filter(loanActive),cl=M.loans.filter(L=>!loanActive(L));
+  let h='<div class="card"><div class="label">Кредиты и рассрочки</div>';
+  if(!M.loans.length)h+='<div class="muted">Добавь кредит или рассрочку: сколько платить в месяц, сколько всего платежей и сколько уже внесено. Приложение будет считать остаток и напоминать о дате.</div>';
+  const debt=act.reduce((s,L)=>s+(L.total-loanPaid(L))*L.pay,0),month=act.reduce((s,L)=>s+ +L.pay,0);
+  if(act.length)h+='<div class="kv"><span>Осталось выплатить</span><b>'+fmt(debt)+' ₸</b></div><div class="kv"><span>В месяц</span><b>'+fmt(month)+" ₸</b></div>";
+  h+=act.map(L=>{const p=loanPaid(L),d=nextDue(L);
+    return '<div class="loan"><div class="loanh"><b>'+esc(L.n)+'</b><span>'+fmt(L.pay)+' ₸</span></div>'+
+     '<div class="muted">'+(L.type==="inst"?"Рассрочка":"Кредит")+" · платёж "+(p+1)+" из "+L.total+" · следующий "+short(d)+" · осталось "+fmt((L.total-p)*L.pay)+" ₸</div>"+
+     '<div class="mbar2"><i style="width:'+(p/L.total*100)+'%;background:var(--ok)"></i></div>'+
+     '<div style="display:flex;gap:8px"><button type="button" class="chipbtn" data-pay="'+L.id+'">Внести платёж</button><button type="button" class="chipbtn" data-ledit="'+L.id+'">Изменить</button></div></div>'}).join("");
+  h+='<button type="button" class="chipbtn" data-ledit="new">+ Кредит или рассрочка</button>';
+  if(cl.length){h+='<button type="button" class="chipbtn" data-lclosed="1">Закрытые: '+cl.length+(showClosed?" ▴":" ▾")+"</button>";
+    if(showClosed)h+=cl.map(L=>'<div class="loan"><div class="loanh"><b>'+esc(L.n)+'</b><span class="pos">закрыт</span></div><div class="muted">'+L.total+" платежей по "+fmt(L.pay)+' ₸</div><button type="button" class="chipbtn" data-ledit="'+L.id+'">Изменить</button></div>').join("")}
+  return h+"</div>";
+}
+function loanForm(){
+  const L=loanEdit==="new"?{n:"",type:"credit",pay:"",total:"",paid0:0,day:M.sal.from}:M.loans.find(x=>x.id===loanEdit)||{};
+  const pd=loanEdit==="new"?0:M.tx.filter(t=>t.loan===L.id).length;
+  return '<div class="edhead"><button type="button" class="chipbtn" data-sub="rep">‹ Назад</button><b>'+(loanEdit==="new"?"Новый кредит":"Кредит")+"</b></div>"+
+   '<div class="card"><label class="fl">Название<input class="inp" id="lN" placeholder="Kaspi Red — телефон, кредит Halyk…" value="'+esc(L.n)+'"></label>'+
+   '<div class="seg small" role="group">'+[["credit","Кредит"],["inst","Рассрочка"]].map(([k,n])=>'<button type="button" data-ltype="'+k+'" aria-pressed="'+(L.type===k)+'">'+n+"</button>").join("")+"</div>"+
+   '<div class="fgrid" style="grid-template-columns:1fr 1fr"><label>Платёж в месяц, ₸<input class="inp" id="lP" inputmode="numeric" value="'+esc(L.pay)+'"></label><label>Всего платежей<input class="inp" id="lT" inputmode="numeric" value="'+esc(L.total)+'"></label>'+
+   '<label>Уже оплачено до учёта<input class="inp" id="l0" inputmode="numeric" value="'+esc(L.paid0||0)+'"></label><label>Число платежа<input class="inp" id="lD" inputmode="numeric" value="'+esc(L.day||"")+'"></label></div>'+
+   (pd?'<div class="muted">Записано платежей в приложении: '+pd+". Они считаются сами.</div>":"")+
+   '<div class="muted" id="lSum"></div>'+
+   '<button type="button" class="save" data-lsave="1">Сохранить</button>'+
+   (loanEdit!=="new"?'<button type="button" class="chipbtn danger" data-ldel="1">'+(loanArm?"Нажми ещё раз: удалить кредит":"Удалить кредит")+"</button>":"")+"</div>";
+}
+let lType="credit";
+function readLoan(){const g=id=>$(id).value.trim(),n=x=>+String(x).replace(/\D/g,"")||0;
+  return{n:g("lN"),pay:n(g("lP")),total:n(g("lT")),paid0:n(g("l0")),day:Math.min(28,Math.max(1,n(g("lD"))||1)),type:lType}}
+root.addEventListener("input",e=>{if(!["lP","lT","l0"].includes(e.target.id))return;const L=readLoan();
+  $("lSum").textContent=L.pay&&L.total?"Всего по кредиту "+fmt(L.pay*L.total)+" ₸ · осталось "+fmt(Math.max(0,L.total-L.paid0)*L.pay)+" ₸ ("+Math.max(0,L.total-L.paid0)+" платежей)":""});
+root.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const d=b.dataset;
+  if(d.pay){const L=M.loans.find(x=>x.id===+d.pay);if(!L)return;openSheet();fillLoan(L);renderSheet();return}
+  if(d.ledit){loanEdit=d.ledit==="new"?"new":+d.ledit;loanArm=false;const L=M.loans.find(x=>x.id===loanEdit);lType=L?L.type:"credit";sub="loan";renderMoney();window.scrollTo(0,0);return}
+  if(d.lclosed){showClosed=!showClosed;renderMoney();return}
+  if(d.ltype){lType=d.ltype;root.querySelectorAll("[data-ltype]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.ltype===lType));return}
+  if(d.lsave){const L=readLoan();if(!L.n||!L.pay||!L.total){toast("Заполни название, платёж и количество платежей");return}
+    if(loanEdit==="new"){L.id=M.nid++;M.loans.push(L)}else Object.assign(M.loans.find(x=>x.id===loanEdit),L);
+    sub="rep";rerender();toast("Сохранено");return}
+  if(d.ldel){if(!loanArm){loanArm=true;renderMoney();setTimeout(()=>{loanArm=false},4000);return}
+    M.loans=M.loans.filter(x=>x.id!==loanEdit);M.tx.forEach(t=>{if(t.loan===loanEdit)delete t.loan});sub="rep";rerender();toast("Кредит удалён, платежи остались в записях");return}
+});
+
+// ---------- виджет в шторке и быстрые действия ----------
+function pushNotif(){
+  if(!(window.Android&&Android.notify))return;
+  if(M.notif===false){try{Android.notifyOff()}catch(e){}return}
+  const t=today();let e=0,i=0;M.tx.forEach(x=>{if(x.d!==t)return;if(x.t==="exp")e+=x.a;if(x.t==="inc")i+=x.a});
+  const P=periodOf(curPer()),s=sums(P);
+  try{Android.notify("Сегодня −"+fmt(e)+(i?" · +"+fmt(i):"")+" ₸ · остаток периода "+fmt(s.b)+" ₸")}catch(err){}
+}
+window.onQuick=function(k){
+  showPage("money");
+  if(k==="qr"){try{Android.scanQR()}catch(e){}return}
+  if(k==="inc"||k==="exp"){openSheet();if(k==="inc")setType("inc");renderSheet()}
+};
+setTimeout(pushNotif,1500);
+
 // ---------- чеки: API для receipt.js ----------
 const hasQR=()=>!!(window.Android&&Android.scanQR);
 window.MoneyAPI={catOf,findItems,items:t=>itemIndex().filter(x=>x.t===t),

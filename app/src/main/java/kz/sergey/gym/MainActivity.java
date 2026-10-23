@@ -1,9 +1,13 @@
 package kz.sergey.gym;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.pm.PackageManager;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
@@ -43,6 +47,42 @@ import java.net.URLEncoder;
 public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout rootView;
+    private String pendingQuick = null, pendingNotif = null;
+    private boolean pageReady = false;
+
+    // уведомление-виджет: «+ Доход / + Расход / Чек» и итог дня
+    private PendingIntent quickIntent(String k, int code) {
+        Intent i = new Intent(this, MainActivity.class).putExtra("quick", k)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return PendingIntent.getActivity(this, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private void postNotif(String text) {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (android.os.Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel("quick") == null) {
+            NotificationChannel ch = new NotificationChannel("quick", "Быстрый ввод денег", NotificationManager.IMPORTANCE_LOW);
+            ch.setShowBadge(false);
+            nm.createNotificationChannel(ch);
+        }
+        Notification.Builder b = android.os.Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "quick") : new Notification.Builder(this);
+        b.setSmallIcon(R.drawable.ic_stat).setContentTitle("Зал · деньги").setContentText(text)
+                .setOngoing(true).setShowWhen(false).setOnlyAlertOnce(true)
+                .setContentIntent(quickIntent("money", 10))
+                .addAction(new Notification.Action.Builder(null, "+ Доход", quickIntent("inc", 11)).build())
+                .addAction(new Notification.Action.Builder(null, "+ Расход", quickIntent("exp", 12)).build())
+                .addAction(new Notification.Action.Builder(null, "Чек QR", quickIntent("qr", 13)).build());
+        nm.notify(7, b.build());
+    }
+
+    private void handleQuick(Intent intent) {
+        if (intent == null) return;
+        String k = intent.getStringExtra("quick");
+        if (k == null) return;
+        intent.removeExtra("quick");
+        if (pageReady) js("window.onQuick&&onQuick(" + JSONObject.quote(k) + ")");
+        else pendingQuick = k;
+    }
 
     // читает позиции со страницы чека consumer.oofd.kz после того, как её соберут скрипты
     private static final String EXTRACT =
@@ -175,6 +215,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void steps(final String date) {
             StepsHelper.read(MainActivity.this, date, (d, n) -> js("onSteps(" + JSONObject.quote(d) + "," + n + ")"));
+        }
+
+        @JavascriptInterface
+        public void notify(final String text) {
+            runOnUiThread(() -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                    pendingNotif = text;
+                    requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 6);
+                    return;
+                }
+                postNotif(text);
+            });
+        }
+
+        @JavascriptInterface
+        public void notifyOff() {
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(7);
         }
 
         @JavascriptInterface
@@ -324,6 +383,18 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         web.addJavascriptInterface(new Bridge(), "Android");
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                pageReady = true;
+                if (pendingQuick != null) {
+                    final String k = pendingQuick;
+                    pendingQuick = null;
+                    view.postDelayed(() -> js("window.onQuick&&onQuick(" + JSONObject.quote(k) + ")"), 400);
+                }
+            }
+        });
+        handleQuick(getIntent());
         rootView = new FrameLayout(this);
         rootView.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(rootView);
@@ -333,6 +404,18 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleQuick(intent);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(req, perms, res);
+        if (req == 6 && res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED && pendingNotif != null) postNotif(pendingNotif);
+    }
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
