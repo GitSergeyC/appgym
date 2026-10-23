@@ -21,11 +21,14 @@ jobs:
         run: |
           set -o pipefail
           gradle assembleDebug --no-daemon 2>&1 | tee build.log || { grep -E "^e: |error:|FAILURE|What went wrong|Could not|> " build.log | head -40 | while read -r l; do echo "::error::$l"; done; exit 1; }
-      - run: cp app/build/outputs/apk/debug/app-debug.apk Zal.apk
+      - run: |
+          VER=$(grep -oP "versionName '\K[^']+" app/build.gradle)
+          cp app/build/outputs/apk/debug/app-debug.apk Zal-$VER.apk
+          echo "VER=$VER" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
-        with: { name: Zal-apk, path: Zal.apk }
+        with: { name: Zal-apk, path: Zal-*.apk }
       - name: Publish release
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          TAG="v1.14.${{ github.run_number }}"
-          gh release create "$TAG" Zal.apk --title "Зал $TAG" --notes "Установочный файл приложения" --latest
+          TAG="v$VER.${{ github.run_number }}"
+          gh release create "$TAG" Zal-$VER.apk --title "Зал $TAG" --notes "Установочный файл приложения" --latest

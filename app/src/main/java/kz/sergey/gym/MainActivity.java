@@ -344,6 +344,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String version() {
+            try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
+        }
+
+        @JavascriptInterface
         public boolean listenerOn() { return hasMusicPerm(); }
 
         // забрать накопленные уведомления Kaspi и очистить очередь

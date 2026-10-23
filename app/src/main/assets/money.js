@@ -256,7 +256,8 @@ function editor(){
    '<div class="card"><div class="label">Счета</div><div class="muted">Начальный остаток — сколько было на счёте до первой записи.</div>'+
    M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Начальный, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+(a.start||0)+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
    '<button type="button" class="chipbtn" data-aadd="1">+ Счёт</button></div>'+
-   '<button type="button" class="bigbtn ghost" data-x3="cated">Категории и подкатегории — в Базе</button>';
+   '<button type="button" class="bigbtn ghost" data-x3="cated">Категории и подкатегории — в Базе</button>'+
+   (window.Android&&Android.version?'<div class="muted" style="text-align:center">Версия приложения '+esc(Android.version())+"</div>":"");
   return h;
 }
 function armOr(key){if(edArm===key){edArm=null;return true}edArm=key;setTimeout(()=>{if(edArm===key){edArm=null;renderMoney()}},4000);renderMoney();return false}
