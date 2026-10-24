@@ -108,7 +108,8 @@ function cmpPer(P){
 const inPer=(t,P)=>P&&t.d>=P.a&&t.d<=P.b;
 function sums(P){let e=0,i=0;M.tx.forEach(t=>{if(!inPer(t,P))return;if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});return{e,i,b:i-e}}
 const expLines=P=>{const r=[];M.tx.forEach(t=>{if(t.t==="exp"&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d,tid:t.id},l)))});return r};
-function accBal(a){let v=+a.start||0;M.tx.forEach(x=>{if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
+const onAcc=()=>M.acc.reduce((v,a)=>v+accBal(a),0);
+function accBal(a){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
 // ---------- состояние экрана ----------
 let per=null,sub="rec",openTx=null,delArm=null;
@@ -140,13 +141,13 @@ function head(P){
   }else{
     if(P.open){const t=parse(today()),nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
       const left=Math.max(1,Math.round((nx-t)/864e5)),mon=nx.toLocaleDateString("ru-RU",{month:"short"}).replace(".","");
-      daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(s.b>0?fmt(s.b/left)+" ₸/день":"—")+"</b></div>"}
+      daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(()=>{const bl=M.budget?Math.min(M.budget-s.e,onAcc()):onAcc();return bl>0?"≈ "+fmt(bl/left)+" ₸/день":M.budget&&M.budget-s.e<=0?'<span class="neg">бюджет исчерпан</span>':"—"})()+"</b></div>"}
     else daily='<div class="daily"><span>Период закрыт</span><b class="'+(s.b>=0?"pos":"neg")+'">'+(s.b>=0?"осталось ":"перерасход ")+fmt(Math.abs(s.b))+" ₸</b></div>";
     const hasSal=M.tx.some(isSalaryTx);
     nav='<div class="pnav"><button type="button" data-per="-1" aria-label="Прошлый период"'+(per>0?"":" disabled")+'>‹</button><button type="button" class="ptitle" data-pp="open"><b>'+short(P.a)+" – "+(P.open?"сейчас":short(P.b))+' ▾</b><span>'+(hasSal?"от зарплаты "+short(P.a):"с "+short(P.a)+" · запиши зарплату, и период начнётся с неё")+(P.open&&hasSal?" · идёт "+(Math.round((parse(today())-parse(P.a))/864e5)+1)+"-й день":"")+'</span></button><button type="button" data-per="1" aria-label="Следующий период"'+(per<last?"":" disabled")+">›</button></div>";
   }
   return '<div class="hero">'+nav+
-    '<div class="nums"><div><span>Расходы</span><b>'+fmt(s.e)+'</b></div><div><span>Доходы</span><b>'+fmt(s.i)+'</b></div><div><span>Остаток</span><b class="'+(s.b>=0?"pos":"neg")+'">'+fmt(s.b)+"</b></div></div>"+daily+"</div>"+
+    '<div class="nums"><div><span>Расходы</span><b>'+fmt(s.e)+'</b></div><div><span>Доходы</span><b>'+fmt(s.i)+'</b></div>'+(P.open&&!P.custom?'<div><span>На счетах</span><b class="'+(onAcc()>=0?"pos":"neg")+'">'+fmt(onAcc())+"</b></div>":'<div><span>Итог</span><b class="'+(s.b>=0?"pos":"neg")+'">'+(s.b>0?"+":"")+fmt(s.b)+"</b></div>")+"</div>"+daily+"</div>"+
     (ppOpen?picker():"")+
     '<div class="seg" role="group">'+[["rec","Записи"],["where","Куда ушло"],["rep","Отчёты"]].map(([k,n])=>'<button type="button" data-sub="'+k+'" aria-pressed="'+(sub===k)+'">'+n+"</button>").join("")+"</div>";
 }
@@ -234,8 +235,8 @@ function reports(P){
    '<div class="kv"><span>Алкоголь и закуски</span><b>'+fmt(sum(l=>l.s==="Алкоголь"||l.s==="Снеки и закуски"))+'</b></div>'+
    '<div class="kv"><span>Сигареты</span><b>'+fmt(sum(l=>l.s==="Сигареты"))+'</b></div></div>'+
    '<div class="card"><div class="label">Счета</div>'+M.acc.map(a=>{const bb=(M.bankBal||{})[a.id];const diff=bb?Math.round(bb.v-accBal(a)):0;
-     return '<div class="accrow"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(bb?'<small class="muted" style="display:block">по Kaspi '+short(bb.d)+": "+fmt(bb.v)+" ₸"+(Math.abs(diff)>1?' · <span class="neg">расхождение '+(diff>0?"+":"−")+fmt(Math.abs(diff))+"</span>":" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"}).join("")+
-   ((M.bankBal&&Object.keys(M.bankBal).length)?'<div class="muted">Если есть расхождение — поправь «Начальный остаток» в настройках или найди незаписанную трату.</div>':"")+"</div>"+
+     return '<div class="accrow"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(bb?'<small class="muted" style="display:block">по Kaspi '+short(bb.d)+": "+fmt(bb.v)+" ₸"+(Math.abs(diff)>10?' · <span class="neg">расхождение '+(diff>0?"+":"−")+fmt(Math.abs(diff))+'</span><br><button type="button" class="chipbtn" data-kfix="'+a.id+'" style="margin-top:6px">Поставить остаток как в Kaspi</button>':" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"}).join("")+
+   (M.acc.some(a=>{const bb=(M.bankBal||{})[a.id];return bb&&Math.abs(bb.v-accBal(a))>10})?'<div class="muted">Расхождение — значит, какая-то операция не записана или записана не на тот счёт. Найди её или нажми «Поставить остаток как в Kaspi».</div>':"")+"</div>"+
    loansCard()+'<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
   return h;
 }
@@ -253,8 +254,8 @@ function editor(){
    (window.Android&&Android.notify?'<div class="card"><div class="label">Виджет в шторке</div><label class="chk"><input type="checkbox" id="notifOn"'+(M.notif!==false?" checked":"")+'>Показывать «+ Доход / + Расход / Чек» и итог дня в уведомлениях</label></div>':"")+
    (window.Android&&Android.kaspiInbox?'<div class="card"><div class="label">Уведомления Kaspi</div><label class="chk"><input type="checkbox" id="kaspiOn"'+(M.kaspiOff?"":" checked")+'>Собирать операции из уведомлений Kaspi во входящие</label>'+
      (Android.listenerOn&&!Android.listenerOn()?'<div class="muted">Нужен доступ к уведомлениям: в списке включи «Зал».</div><button type="button" class="chipbtn" data-x3="perm">Дать доступ к уведомлениям</button>':'<div class="muted">Доступ есть. Новые операции появятся наверху вкладки «Записи».</div>')+"</div>":"")+
-   '<div class="card"><div class="label">Счета</div><div class="muted">Начальный остаток — сколько было на счёте до первой записи.</div>'+
-   M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Начальный, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+(a.start||0)+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
+   '<div class="card"><div class="label">Счета</div><div class="muted">Впиши, сколько на счёте сейчас. Записи до этого момента на остаток уже не влияют — старые траты можно спокойно дописывать.</div>'+
+   M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Сейчас, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+Math.round(accBal(a))+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
    '<button type="button" class="chipbtn" data-aadd="1">+ Счёт</button></div>'+
    '<button type="button" class="bigbtn ghost" data-x3="cated">Категории и подкатегории — в Базе</button>'+
    (window.Android&&Android.version?'<div class="muted" style="text-align:center">Версия приложения '+esc(Android.version())+"</div>":"");
@@ -308,7 +309,7 @@ root.addEventListener("change",e=>{const t=e.target,d=t.dataset,cats=M.cats[edT]
   else if(t.id==="salT"){M.sal.to=Math.min(31,Math.max(1,+t.value||18));rerender()}
   else if(t.id==="bud"){M.budget=+String(t.value).replace(/\D/g,"")||0;rerender()}
   else if(d.an!=null){M.acc[+d.an].n=t.value.trim()||M.acc[+d.an].n;save()}
-  else if(d.as!=null){M.acc[+d.as].start=+String(t.value).replace(/[^\d-]/g,"")||0;save()}
+  else if(d.as!=null){const a=M.acc[+d.as];a.start=+String(t.value).replace(/[^\d-]/g,"")||0;a.sd=today();a.sid=M.nid-1;save()}
   else if(d.cn!=null){cats[+d.cn].n=t.value.trim()||cats[+d.cn].n;rerender()}
   else if(d.sn!=null){const [ci,si]=d.sn.split("|").map(Number),old=cats[ci].s[si].n,nw=t.value.trim();if(!nw)return;
     cats[ci].s[si].n=nw;M.tx.forEach(x=>(x.lines||[]).forEach(l=>{if(l.c===cats[ci].id&&l.s===old)l.s=nw}));save()}
@@ -373,6 +374,7 @@ function renderSheet(){
    (hasPhoto()?'<button type="button" data-x="photo" aria-label="Фото чека">'+svg("camera")+"</button>":"")+"</div>";
   if(Fm.photoAsk)h+='<div class="pickrow"><button type="button" class="chipbtn" data-ph="cam">Сфотографировать чек</button><button type="button" class="chipbtn" data-ph="gal">Выбрать из галереи</button></div><div class="hint">Чек целиком в кадре, ровно, при хорошем свете. Длинный чек можно снять в два фото и добавить по очереди.</div>';
   if(Fm.msg)h+='<div class="foodlink voicebox">'+esc(Fm.msg).split("\n").map(x=>"<div>"+x+"</div>").join("")+"</div>";
+  if(Fm.sug&&Fm.sug.length)h+='<div class="label">Раньше выбирал</div><div class="chips">'+Fm.sug.map((g,i)=>{const c=catOf(g.c);return '<button type="button" data-sug="'+i+'" aria-pressed="'+(Fm.c===g.c&&Fm.s===g.s)+'">'+esc((c?c.n:"")+(g.s?" › "+g.s:"")+(g.n?" › "+g.n:""))+"</button>"}).join("")+"</div>";
   if(Fm.assign!=null&&Fm.lines[Fm.assign])h+='<div class="assign"><span>Выбери позицию для «<b>'+esc(Fm.lines[Fm.assign].raw||Fm.lines[Fm.assign].n||"")+'</b>»: найди в строке выше или выбери категорию ниже.</span><button type="button" class="chipbtn" data-x="unassign">Готово</button></div>';
   const found=Fm.q?findItems(Fm.q,Fm.t):[];
   if(found.length)h+='<div class="found">'+found.map((x,i)=>'<button type="button" data-fi="'+i+'"><span>'+esc(x.it.n)+'</span><span>'+esc(catOf(x.c).n+" › "+x.s)+"</span></button>").join("")+"</div>";
@@ -609,7 +611,7 @@ const hasQR=()=>!!(window.Android&&Android.scanQR);
 const hasPhoto=()=>!!(window.Android&&Android.photo);
 window.MoneyAPI={openPrefilled(o){openSheet();setType(o.t);
     if(o.c){Fm.c=o.c;Fm.s=o.s||null;if(o.n)Fm.lines=[{c:o.c,s:o.s,n:o.n,a:String(o.a)}];else Fm.a=String(o.a)}else Fm.a=String(o.a);
-    if(o.acc)Fm.acc=o.acc;if(o.d)Fm.d=o.d;Fm.note=o.note||"";Fm.kin=o.kin;Fm.msg=o.msg||null;Fm.foodOn=false;renderSheet()},
+    if(o.acc)Fm.acc=o.acc;if(o.d)Fm.d=o.d;Fm.note=o.note||"";Fm.kin=o.kin;Fm.msg=o.msg||null;Fm.sug=o.sug||null;Fm.foodOn=false;renderSheet()},
   setTab(x){sub=x;renderMoney()},accOf,today,M,svg,PALETTE,save,rerender:()=>{save();if(!$("pageMoney").hidden)renderMoney()},catOf,findItems,items:t=>itemIndex().filter(x=>x.t===t),
   loading(msg){Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,busy:msg};
     sheet.hidden=false;document.body.style.overflow="hidden";renderSheet()},
@@ -617,4 +619,11 @@ window.MoneyAPI={openPrefilled(o){openSheet();setType(o.t);
     if(!o.lines.length&&o.total)Fm.a=String(Math.round(o.total));
     const un=o.lines.findIndex(l=>!l.c);Fm.assign=un>=0?un:null;if(o.lines[0]&&o.lines[0].c)Fm.c=o.lines[0].c;renderSheet()}};
 window.addEventListener("DOMContentLoaded",()=>{if(!$("pageMoney").hidden)renderMoney()});
+sheet.addEventListener("click",e=>{const b=e.target.closest("[data-sug]");if(!b||!Fm.sug)return;e.stopPropagation();
+  const g=Fm.sug[+b.dataset.sug],amt=(Fm.lines[0]&&Fm.lines[0].a)||Fm.a;Fm.c=g.c;Fm.s=g.s||null;
+  if(g.n){Fm.lines=[{c:g.c,s:g.s,n:g.n,a:String(amt)}];Fm.a=""}else{Fm.lines=[];Fm.a=String(amt)}renderSheet()},true);
+document.addEventListener("click",e=>{const b=e.target.closest("[data-kfix]");if(!b)return;
+  const a=M.acc.find(x=>x.id===b.dataset.kfix),bb=M.bankBal[a.id];if(!a||!bb)return;
+  const target=bb.v-(window.kaspiPending?kaspiPending(a.id,bb.time):0);a.start=(+a.start||0)+Math.round(target-accBal(a));
+  save();renderMoney();toast("Остаток "+a.n+": "+fmt(accBal(a))+" ₸")});
 })();

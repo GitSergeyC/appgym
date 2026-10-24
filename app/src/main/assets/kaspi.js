@@ -24,8 +24,13 @@ const MERCH=[
  [/годов\S*\s*обслуж|обслуживан/,"exp","credit","Банк","Обслуживание карты"],[/kaspi\s*red|рассрочк/,"exp","credit","Рассрочки","Kaspi Red"],[/кредит/,"exp","credit","Кредиты","Платёж по кредиту"],
  [/с другого банка/,"inc","transfers","Переводы","С другого банка"],[/пособ|соц/,"inc","transfers","Переводы","Пособие"],[/кешб|cashback|бонус/,"inc","cashback","Кешбэк","Kaspi"]
 ];
+// службы доставки и маркетплейсы возят что угодно — категорию для них не запоминаем намертво
+const AGG=/glovo|wolt|яндекс[\s.]*ед|yandex[\s.]*ed|kaspi[\s.]*(магазин|shop|маркет)|ozon|озон|wildberries|вайлдберриз|arbuz|арбуз|chocofood|airba/;
+const isAgg=k=>AGG.test(norm(k||""));
+M.kmulti=M.kmulti||{};
+for(const k in M.kmap)if(isAgg(k)){(M.kmulti[k]=M.kmulti[k]||[]).push(M.kmap[k]);delete M.kmap[k];save()}
 function guess(kind,who,desc){
-  const k=norm(who||desc||"");if(k&&M.kmap[k])return M.kmap[k];
+  const k=norm(who||desc||"");if(k&&M.kmap[k]&&!isAgg(k))return M.kmap[k];
   const t=norm((who||"")+" "+(desc||""));
   for(const [re,ty,c,s,n] of MERCH)if(ty===kind&&re.test(t))return{c,s,n};
   if(kind==="inc"&&/^[a-zа-я]+\s+[a-zа-я]\.?$/i.test((who||"").trim()))return{c:"tips",s:"Чаевые",n:"На карту"}; // перевод от человека — чаевые
@@ -76,13 +81,17 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-kok],[data
   if(b.dataset.kclear){M.kin=[];save();renderMoney();return}
   const k=M.kin.find(x=>x.id===(b.dataset.kok||b.dataset.kno));if(!k)return;
   if(b.dataset.kno){M.kin=M.kin.filter(x=>x!==k);save();renderMoney();return}
-  const g=guess(k.kind,k.who,k.desc)||{};
-  A.openPrefilled({t:k.kind,c:g.c,s:g.s,n:g.n,a:k.a,acc:k.acc,d:k.d,note:k.who||k.desc||"",kin:k.id,
-    msg:"Из Kaspi: «"+k.type+": "+fmt(k.a)+" ₸"+(k.who?" · "+k.who:"")+(k.desc?" · "+k.desc:"")+"». "+(g.c?"Категорию угадал — проверь.":"Выбери категорию.")+" Выбор запомню для «"+(k.who||k.desc||k.type)+"»."});
+  const g=guess(k.kind,k.who,k.desc)||{},key=norm(k.who||k.desc||""),agg=isAgg(key);
+  A.openPrefilled({sug:agg?M.kmulti[key]:null,t:k.kind,c:g.c,s:g.s,n:g.n,a:k.a,acc:k.acc,d:k.d,note:k.who||k.desc||"",kin:k.id,
+    msg:"Из Kaspi: «"+k.type+": "+fmt(k.a)+" ₸"+(k.who?" · "+k.who:"")+(k.desc?" · "+k.desc:"")+"». "+(agg?"Через «"+(k.who||k.desc)+"» можно заказать что угодно — выбери, что именно купил.":(g.c?"Категорию угадал — проверь.":"Выбери категорию.")+" Выбор запомню для «"+(k.who||k.desc||k.type)+"».")});
 });
 // после сохранения: убрать из входящих и запомнить категорию для этого человека/продавца
 window.kaspiDone=function(id,tx){const k=M.kin.find(x=>x.id===id);M.kin=M.kin.filter(x=>x.id!==id);
-  if(k&&tx.lines&&tx.lines[0]){const key=norm(k.who||k.desc||"");const l=tx.lines[0];if(key)M.kmap[key]={c:l.c,s:l.s,n:l.n}}};
+  if(k&&tx.lines&&tx.lines[0]){const key=norm(k.who||k.desc||"");const l=tx.lines[0];const v={c:l.c,s:l.s,n:l.n};
+    if(key&&isAgg(key)){const L=(M.kmulti[key]||[]).filter(x=>!(x.c===v.c&&x.s===v.s&&x.n===v.n));L.unshift(v);M.kmulti[key]=L.slice(0,4)}
+    else if(key)M.kmap[key]=v}};
+// операции из Kaspi, ещё не записанные: их сумма уже есть в «Доступно», но в записях пока нет
+window.kaspiPending=(acc,upto)=>M.kin.filter(k=>k.acc===acc&&k.time<=upto).reduce((v,k)=>v+(k.kind==="inc"?k.a:-k.a),0);
 window.kaspiParse=parse;
 const prev=window.onAppResume;window.onAppResume=function(){try{prev&&prev()}catch(e){}pull()};
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});
