@@ -115,13 +115,20 @@ function fixDigits(s){return s.replace(/(?<=[\d.,\s=xх×*])[ОоOo](?=[\d.,\s]|
 function parseOcr(text){
   const L=String(text||"").split(/\r?\n/).map(x=>fixDigits(x.trim())).filter(Boolean);
   const items=[],used=new Set();let total=0,d=null,seller="";
+  const rest=L.some(x=>/гостев\S*\s*сч|официант|стол\s*[:№]|заказ\s*№/i.test(x));
   const skip=/(ндс|итог|сдача|наличн|банк|карт|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|надбавк|скидк)/i;
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!seller){const m=x.match(/small|magnum|galmart|анвар|арзан|metro/i);if(m)seller=sellerName(m[0])}
+    if(!seller&&i<6&&/cafe|кафе|ресторан|restaurant|\bbar\b|\bбар\b|coffee|кофейн|lounge|pub|паб/i.test(x)&&!/зал\s*:/i.test(x))seller=x.replace(/[*_=~|]+/g," ").replace(/^\W*\S{1,2}\s+(?=[A-ZА-Я])/,"").replace(/\s+/g," ").trim().slice(0,30);
     if(!d){let m=x.match(/(\d{2})[.\/](\d{2})[.\/](\d{4})/);if(m)d=m[3]+"-"+m[2]+"-"+m[1];else{m=x.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m)d=m[1]+"-"+m[2]+"-"+m[3]}}
-    if(/итог/i.test(x)&&!/промежут/i.test(x)){const m=x.match(NUM)||(L[i+1]||"").match(NUM);if(m&&!total)total=num(m[0])}
+    if((/итог|к\s*оплат|k\s*onnat|оплате/i.test(x))&&!/промежут/i.test(x)){const m=x.match(NUM)||(L[i+1]||"").match(NUM);if(m&&!total)total=num(m[0])}
     const m=x.match(/(\d+(?:[.,]\d+)?)\s*[xхХX×*]\s*(\d[\d  ]*[.,]\d{1,2})(?:\s*=\s*(\d[\d  ]*[.,]\d{1,2}))?/);
-    if(!m)continue;
+    if(!m){
+      // ресторанный счёт: «Кофе Американо дир   1   350,00»
+      const r=!skip.test(x)&&!/\d{2}[.\/]\d{2}[.\/]\d{4}/.test(x)&&x.match(/^(.*?[a-zа-яё]{3}.*?)\s+(\d{1,3}(?:[.,]\d{1,3})?)\s+(\d[\d\s]*[.,]\d{2})(?!\d)/i);
+      if(r){const name=r[1].replace(/^(?:[^\sа-яёa-z]*[A-ZА-ЯЁ]{1,2}[^\sа-яёa-z]*\s+)+(?=[A-ZА-ЯЁ][а-яёa-z])/,"").replace(/\s+/g," ").trim();
+        const qty=num(r[2]),tot=num(r[3]);if(name.replace(/[^a-zа-я]/gi,"").length>=3&&tot>0&&qty>0&&qty<100){used.add(i);items.push({name,qty,price:tot/qty,total:tot})}}
+      continue}
     const qty=num(m[1]),price=num(m[2]);let tot=m[3]?num(m[3]):0;
     if(!tot){const n=(L[i+1]||"").match(/^=?\s*(\d[\d  ]*[.,]\d{1,2})/);if(n){tot=num(n[1]);used.add(i+1)}}
     if(!tot)tot=Math.round(qty*price*100)/100;
@@ -136,15 +143,29 @@ function parseOcr(text){
     if(name.replace(/[^a-zа-я]/gi,"").length<2||!tot)continue;
     used.add(i);items.push({name,qty,price,total:tot});
   }
-  return{items,total,d,seller};
+  return{items,total,d,seller,rest};
 }
-function buildLines(items){return items.map(it=>{const m=match(it.name);const l={raw:it.name,a:String(Math.round(it.total)),q:""};
-  if(m){Object.assign(l,{c:m.c,s:m.s,n:m.it.n,f:m.it.f,u:m.it.u});if(m.it.u)l.q=String(qtyFor(it.name,it.qty||1,m.it.u))}return l})}
+// Java присылает текст двух режимов распознавания через «=====» — берём тот, что лучше разобрался
+function bestOcr(text){
+  const parts=String(text||"").split(/\n=====\n/).filter(x=>x.trim());let best=null,bs=-1;
+  const all=parts.map(parseOcr);
+  all.forEach(r=>{const sum=r.items.reduce((s,i)=>s+i.total,0);const sc=r.items.length*10+(r.total&&Math.abs(r.total-sum)<=1?100:0)+(r.total?5:0);if(sc>bs){bs=sc;best=r}});
+  if(best){all.forEach(r=>{if(!best.total&&r.total)best.total=r.total;if(!best.d&&r.d)best.d=r.d;if(!best.seller&&r.seller)best.seller=r.seller;best.rest=best.rest||r.rest})}
+  return best||parseOcr("");
+}
+function buildLines(items,rest){return items.map(it=>{let m=match(it.name);const l={raw:it.name,a:String(Math.round(it.total)),q:""};
+  // счёт из кафе: всё, что не алкоголь/сигареты, — «Кафе и еда вне дома», а не «Продукты»
+  if(rest&&(!m||(m.c!=="cafe"&&m.c!=="habit"))){const n=norm(it.name);
+    const drink=/коф|американ|капуч|латте|эспресс|раф|чай|лимонад|смузи|сок|морс|вода/.test(n);
+    m=drink?itemOf("cafe","Кофе и напитки с собой",/чай/.test(n)?"Чай":/лимонад/.test(n)?"Лимонад":/смузи/.test(n)?"Смузи":"Кофе"):null;
+    if(!m){Object.assign(l,{c:"cafe",s:"Кафе и рестораны",n:null});return l}}
+  if(m){Object.assign(l,{c:m.c,s:m.s,n:m.it.n,f:m.it.f,u:rest?null:m.it.u});if(m.it.u&&!rest)l.q=String(qtyFor(it.name,it.qty||1,m.it.u))}return l})}
 window.parseOcr=parseOcr;
-window.onOcrStart=function(){MoneyAPI.loading("Распознаю чек с фото… обычно 5–20 секунд")};
+window.onOcrStart=function(){if($("pageMoney").hidden)showPage("money");MoneyAPI.loading("Распознаю чек с фото… обычно 10–30 секунд")};
+window.onPhotoCancel=function(ok){wToast(ok?"Фото не получено — попробуй ещё раз или выбери из галереи":"Фото отменено")};
 window.onOcr=function(text){
   if(!text){MoneyAPI.openReceipt({lines:[],msg:"Не получилось распознать фото. Сфотографируй ровнее, при хорошем свете, чтобы чек занимал весь кадр."});return}
-  const r=parseOcr(text),lines=buildLines(r.items),sum=lines.reduce((s,l)=>s+(+l.a||0),0);
+  const r=bestOcr(text),lines=buildLines(r.items,r.rest),sum=lines.reduce((s,l)=>s+(+l.a||0),0);
   MoneyAPI.openReceipt({lines,d:r.d,note:r.seller,total:r.total,
     msg:lines.length?"С фото: "+lines.length+" поз. на "+Math.round(sum).toLocaleString("ru-RU")+" ₸"+(r.total&&Math.abs(r.total-sum)>1?" (ИТОГ в чеке "+Math.round(r.total).toLocaleString("ru-RU")+" ₸ — что-то не распозналось, проверь)":" — сходится с ИТОГ")+". Фото распознаётся не идеально: проверь названия и суммы.":
       "Позиции не нашёл"+(r.total?", но ИТОГ "+Math.round(r.total).toLocaleString("ru-RU")+" ₸":"")+". Попробуй переснять ближе или добавь вручную."});

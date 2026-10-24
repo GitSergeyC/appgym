@@ -122,9 +122,14 @@ public class MainActivity extends Activity {
             try {
                 Bitmap bmp = loadForOcr(u);
                 if (tess.init(tessDir(), "rus+eng")) {
+                    // два режима: «колонка» лучше для магазинных чеков, «блок» — для ресторанных строк «Название  1  350,00»
                     tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN);
                     tess.setImage(bmp);
-                    text = tess.getUTF8Text();
+                    String a = tess.getUTF8Text();
+                    tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK);
+                    tess.setImage(bmp);
+                    String b2 = tess.getUTF8Text();
+                    text = (a == null ? "" : a) + "\n=====\n" + (b2 == null ? "" : b2);
                 }
             } catch (Throwable e) {
                 text = null;
@@ -177,8 +182,12 @@ public class MainActivity extends Activity {
         "if(h){var ps=document.querySelectorAll('p');for(var k=0;k<ps.length;k++){if(h.compareDocumentPosition(ps[k])&4){var f=ps[k].firstChild;seller=((f&&f.textContent)||ps[k].textContent||'').trim();break;}}}" +
         "return JSON.stringify({items:items,header:ht,seller:seller});}catch(e){return null}})()";
 
+    private final java.util.ArrayList<String> pendingJs = new java.util.ArrayList<>();
     private void js(final String code) {
-        runOnUiThread(() -> web.evaluateJavascript(code, null));
+        runOnUiThread(() -> {
+            if (!pageReady) { pendingJs.add(code); return; }   // страница ещё грузится (например, после камеры приложение перезапустилось)
+            web.evaluateJavascript(code, null);
+        });
     }
 
     public class Bridge {
@@ -332,6 +341,7 @@ public class MainActivity extends Activity {
                     } else {
                         File f = new File(getCacheDir(), "receipt.jpg");
                         camUri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                        getSharedPreferences("zal", MODE_PRIVATE).edit().putString("camUri", camUri.toString()).apply();
                         Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                         i.putExtra(MediaStore.EXTRA_OUTPUT, camUri);
                         i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -511,6 +521,11 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
+                if (!pendingJs.isEmpty()) {
+                    final ArrayList<String> q = new ArrayList<>(pendingJs);
+                    pendingJs.clear();
+                    view.postDelayed(() -> { for (String c : q) view.evaluateJavascript(c, null); }, 700);
+                }
                 if (pendingQuick != null) {
                     final String k = pendingQuick;
                     pendingQuick = null;
@@ -545,8 +560,13 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == 77) js("window.onStepsPerm&&onStepsPerm()");
+        if (req == 91 && camUri == null) {   // приложение могли выгрузить, пока открыта камера
+            String cu = getSharedPreferences("zal", MODE_PRIVATE).getString("camUri", null);
+            if (cu != null) camUri = Uri.parse(cu);
+        }
         if (req == 91 && res == RESULT_OK && camUri != null) runOcr(camUri);
-        if (req == 92 && res == RESULT_OK && data != null && data.getData() != null) runOcr(data.getData());
+        else if (req == 92 && res == RESULT_OK && data != null && data.getData() != null) runOcr(data.getData());
+        else if (req == 91 || req == 92) js("window.onPhotoCancel&&onPhotoCancel(" + (res == RESULT_OK) + ")");
         if (req == 88 && res == RESULT_OK && data != null) {
             ArrayList<String> r = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (r != null && !r.isEmpty()) js("window.onVoice&&onVoice(" + JSONObject.quote(r.get(0)) + ")");

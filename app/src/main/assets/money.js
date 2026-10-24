@@ -428,7 +428,7 @@ sheet.addEventListener("click",e=>{
   else if(d.x==="unassign"){Fm.assign=null;renderSheet()}
   else if(d.x==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}}
   else if(d.x==="photo"){Fm.photoAsk=!Fm.photoAsk;renderSheet()}
-  else if(d.ph){Fm.photoAsk=false;try{Android.photo(d.ph)}catch(err){toast("Камера недоступна")}}
+  else if(d.ph){Fm.photoAsk=false;renderSheet();try{Android.photo(d.ph)}catch(err){toast("Камера недоступна")}}
   else if(d.lx!=null){Fm.lines.splice(+d.lx,1);renderSheet()}
   else if(d.x==="own"){Fm.own=true;renderSheet();$("ownN").focus()}
   else if(d.x==="ownok"){const n=$("ownN").value.trim();if(!n)return;const c=catOf(Fm.c),sv=c.s.find(x=>x.n===Fm.s)||c.s[0];
