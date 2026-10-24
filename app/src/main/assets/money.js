@@ -331,13 +331,15 @@ function renderCost(){
   const box=$("costCard");if(!box)return;const E=(S.food[dkey(day)]||[]);
   if(!E.length){box.innerHTML='<div class="label">Еда стоила</div><div class="muted">Добавь еду в дневник: цены продуктов берутся из покупок во вкладке «Деньги».</div>';return}
   let tot=0,out=0,miss=0;const rows=E.map(e=>{const c=costOf(e);if(c==null)miss++;else{tot+=c;if(e.cost!=null)out+=c}
-    return '<div class="frow"><span>'+esc0(e.n)+"<small>"+(e.cost!=null?"из «Денег»":c==null?"нет цены":fmt(c/e.g*1000)+" ₸/кг")+"</small></span><span>"+e.g+" г</span><span>"+(c==null?"—":fmt(c)+" ₸")+"</span></div>"}).join("");
+    return '<div class="frow"><span>'+esc0(e.n)+"<small>"+(e.cost!=null?"из «Денег»":c==null?'<button type="button" class="chipbtn setpr" data-setpr="'+esc0(e.n)+'">Указать цену</button>':fmt(c/e.g*1000)+" ₸/кг")+"</small></span><span>"+e.g+" г</span><span>"+(c==null?"—":fmt(c)+" ₸")+"</span></div>"}).join("");
   const prot=S.base.filter(b=>b.pkg&&b.p>=8).map(b=>({n:b.n,v:b.pkg/10/b.p*100})).sort((x,y)=>x.v-y.v).slice(0,5);
   box.innerHTML='<div class="label">Еда '+(dkey(day)===today()?"сегодня":"за день")+' стоила</div><div class="kcal">'+fmt(tot)+' <small>₸</small></div>'+
    '<div class="muted">Дома '+fmt(tot-out)+" ₸ · вне дома "+fmt(out)+" ₸"+(miss?" · без цены: "+miss+" поз.":"")+"</div><div>"+rows+"</div>"+
-   (miss?'<div class="muted">Цена появится, когда купишь продукт и укажешь количество в кг, л или шт. Или впиши «Цену за кг» в Базе.</div>':"")+
-   (prot.length?'<div class="label" style="margin-top:6px">Цена 100 г белка</div><div class="ptable">'+prot.map((x,i)=>"<span>"+esc0(x.n)+'</span><span class="'+(i?"":"best")+'">'+fmt(x.v)+" ₸</span>").join("")+"</div>":"");
+   (miss?'<div class="muted">У '+miss+' поз. нет цены. Нажми «Указать цену» — или цена подставится сама, когда запишешь покупку этого продукта в «Деньгах» с весом.</div>':"")+
+   (prot.length>1?'<div class="label" style="margin-top:8px">Где белок дешевле</div><div class="muted">Сколько стоят 100 г чистого белка. Чем меньше — тем выгоднее добирать белок этим продуктом.</div><div class="ptable">'+prot.map((x,i)=>"<span>"+esc0(x.n)+'</span><span class="'+(i?"":"best")+'">'+fmt(x.v)+" ₸</span>").join("")+"</div>":"");
 }
+document.addEventListener("click",ev=>{const b=ev.target.closest("[data-setpr]");if(!b)return;
+  const it=S.base.find(x=>x.n===b.dataset.setpr);showPage("base");if(it)openBase(it);setTimeout(()=>{const f=$("bPr");if(f)f.focus()},50)});
 const origRF=renderFood;renderFood=function(){origRF.apply(this,arguments);renderCost()};
 
 // ---------- лист добавления / изменения ----------

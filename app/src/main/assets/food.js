@@ -140,10 +140,14 @@ function renderResults(){
   const list=q?search(q).slice(0,30):S.recent.map(findByName).filter(Boolean).slice(0,10);
   const head=!q&&list.length?'<div class="msg">Недавние</div>':"";
   $("results").innerHTML=head+list.map(x=>'<button type="button" data-n="'+esc(x.n)+'"><span>'+esc(x.n)+priceTag(x)+
-    '</span><span>'+macroLine(x)+'</span></button>').join("")+
+    '</span><span>'+macroLine(x)+'</span>'+(q?"":'<span class="rmx" data-rm="'+esc(x.n)+'" aria-label="Убрать из недавних">×</span>')+'</button>').join("")+
+    (!q&&list.length>1?'<button type="button" class="linkbtn" data-rmall="1">Очистить недавние</button>':"")+
     (q&&!list.length?'<div class="msg">Ничего не нашёл. Добавь как свой продукт.</div>':"");
 }
 $("q").addEventListener("input",renderResults);
+$("results").addEventListener("click",ev=>{const r=ev.target.closest("[data-rm],[data-rmall]");if(!r)return;
+  ev.stopImmediatePropagation();ev.preventDefault();
+  S.recent=r.dataset.rmall?[]:S.recent.filter(n=>n!==r.dataset.rm);save();renderResults()},true);
 $("results").addEventListener("click",ev=>{const b=ev.target.closest("button");if(b)pick(findByName(b.dataset.n))});
 
 let cur=null;
@@ -206,17 +210,34 @@ function openBase(item){
   $("bTitle").textContent=item?"Изменить продукт":"Новый продукт";
   $("bName").value=item?item.n:$("bq").value.trim();
   $("bK").value=item?item.k:"";$("bP").value=item?item.p:"";$("bF").value=item?item.f:"";$("bC").value=item?item.c:"";
-  $("bB").value=item&&item.b||"";$("bPk").value=item&&item.pkg||"";$("bPw").value=item&&item.pw||"";$("bDel").hidden=!item;$("bDel").textContent="Удалить";
+  $("bB").value=item&&item.b||"";$("bPw").value=item&&item.pw||"";
+  {const pp=item&&item.pp;$("bPu").value=pp?pp.u:"kg";$("bPr").value=pp?pp.a:(item&&item.pkg||"");$("bPg").value=pp&&pp.g||"";priceInfo()}$("bDel").hidden=!item;$("bDel").textContent="Удалить";
   $("bMsg").hidden=true;$("bForm").hidden=false;window.scrollTo(0,0);$("bName").focus();
 }
 $("bq").addEventListener("input",renderBase);
+let warnPw=false;
+function calcPkg(){
+  const a=num($("bPr").value),u=$("bPu").value;if(!(a>0))return{};
+  if(u==="kg")return{pkg:Math.round(a),pp:{u,a}};
+  if(u==="pack"){const g=num($("bPg").value);if(!(g>0))return{err:"Впиши вес упаковки в граммах — тогда посчитаю цену за кг."};return{pkg:Math.round(a/g*1000),pp:{u,a,g}}}
+  const w=num($("bPw").value);if(!(w>0))return{err:"Впиши, сколько весит 1 штука — тогда посчитаю цену за кг."};return{pkg:Math.round(a/w*1000),pp:{u,a}};
+}
+function priceInfo(){
+  const u=$("bPu").value;$("bPgL").hidden=u!=="pack";warnPw=false;
+  const r=calcPkg();$("bPrInfo").textContent=r.pkg?(u==="kg"?"Цена "+r.pkg.toLocaleString("ru-RU")+" ₸ за кг":"= "+r.pkg.toLocaleString("ru-RU")+" ₸ за кг — так и посчитаю съеденное"):"";
+}
+["bPr","bPg","bPw"].forEach(id=>$(id).addEventListener("input",priceInfo));$("bPu").addEventListener("change",priceInfo);
 $("bAdd").onclick=()=>openBase(null);
 $("bList").addEventListener("click",ev=>{const b=ev.target.closest("button");if(b)openBase(findByName(b.dataset.n))});
 $("bCancel").onclick=()=>{$("bForm").hidden=true;editName=null};
 $("bForm").addEventListener("submit",ev=>{
   ev.preventDefault();const it=readProd("b");if(!it.n)return;
   const old=editName!=null?findByName(editName):null;if(old){if(old.pd)it.pd=old.pd}
-  const pk=num($("bPk").value),pw=num($("bPw").value);if(pk>0)it.pkg=Math.round(pk);if(pw>0)it.pw=pw;
+  const pw=num($("bPw").value),pr=calcPkg();if(pw>0)it.pw=pw;
+  if(pr.err){$("bMsg").textContent=pr.err;$("bMsg").hidden=false;return}
+  if(pr.pkg){it.pkg=pr.pkg;it.pp=pr.pp;if(!old||old.pkg!==pr.pkg)it.pd=new Date().toISOString().slice(0,10)}
+  if(it.k>900){const k=Math.round(it.k/4.184*10)/10;$("bK").value=k;$("bMsg").textContent="Больше 900 ккал на 100 г не бывает (даже у масла ~750). Похоже, это кДж — перевёл: "+k+" ккал. Проверь и нажми «Сохранить» ещё раз.";$("bMsg").hidden=false;return}
+  if(pw>=1000&&!warnPw){warnPw=true;$("bMsg").textContent="1 штука весит "+pw+" г? Если это цена — перенеси её в поле «Цена». Нажми «Сохранить» ещё раз, если всё верно.";$("bMsg").hidden=false;return}
   const b=$("bB").value.trim();if(b)it.b=b;
   const clash=S.base.find(x=>x.n===it.n&&x.n!==editName);
   if(clash){$("bMsg").textContent="Продукт с таким названием уже есть. Измени название или отредактируй тот.";$("bMsg").hidden=false;return}

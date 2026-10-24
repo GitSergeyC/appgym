@@ -86,6 +86,9 @@ details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;
 .res button{display:flex;justify-content:space-between;gap:10px;text-align:left;border:none;border-top:1px solid var(--line);background:none;color:var(--fg);padding:10px 2px;font:15px var(--body);cursor:pointer}
 .res button span:last-child{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .res .tag{color:var(--accent);font-size:12px;margin-left:6px}
+.res .rmx{font-size:22px!important;line-height:1;padding:0 4px 0 10px;align-self:center;color:var(--muted)}
+.res .linkbtn{justify-content:center;color:var(--muted);font-size:13px}
+.frow .setpr{padding:2px 10px;font-size:12px;margin-left:6px;border-color:var(--accent);color:var(--accent)}
 .pick{background:var(--accent-soft);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .pick .ttl{font-weight:600}
 .pickrow{display:flex;gap:8px;align-items:center}
@@ -488,7 +491,10 @@ body{margin:0}
       <label>Жиры<input class="inp" id="bF" type="text" inputmode="decimal"></label>
       <label>Углев.<input class="inp" id="bC" type="text" inputmode="decimal"></label>
     </div>
-    <div class="fgrid" style="grid-template-columns:1fr 1fr"><label>Цена за кг, ₸<input class="inp" id="bPk" type="text" inputmode="numeric" placeholder="из покупок"></label><label>Вес 1 шт, г<input class="inp" id="bPw" type="text" inputmode="numeric" placeholder="для штучного"></label></div>
+    <div class="fgrid" style="grid-template-columns:1fr 1fr"><label>Цена, ₸<input class="inp" id="bPr" type="text" inputmode="numeric" placeholder="1500"></label><label>За что цена<select class="inp" id="bPu"><option value="kg">за 1 кг (1 л)</option><option value="pack">за упаковку</option><option value="pc">за 1 штуку</option></select></label></div>
+    <label class="fl" id="bPgL" hidden>Вес упаковки, г<input class="inp" id="bPg" type="text" inputmode="numeric" placeholder="180"></label>
+    <label class="fl" id="bPwL">Сколько весит 1 штука, г <small>(яйцо, банан — чтобы считать штуками)</small><input class="inp" id="bPw" type="text" inputmode="numeric" placeholder="необязательно"></label>
+    <div class="muted" id="bPrInfo"></div>
     <label class="fl">Штрихкод (необязательно)<input class="inp" id="bB" type="text" inputmode="numeric"></label>
     <div class="msg" id="bMsg" hidden></div>
     <div class="pickrow" style="flex-wrap:wrap">
@@ -690,6 +696,7 @@ if((S.v||1)<2){if(S.e)S.e=migrateE(S.e);(S.hist||[]).forEach(h=>h.e=migrateE(h.e
 // программа хранится у пользователя и редактируется
 if(!S.plan){S.plan=JSON.parse(JSON.stringify(DEFAULT_PLAN));save()}
 let PLAN=S.plan;
+if(S.base)S.base.forEach(x=>{if(x.k>900&&x.k/4.184<=900)x.k=Math.round(x.k/4.184*10)/10});
 if((S.v||2)<3){const L=DEFAULT_PLAN.C.ex.find(e=>e.id==="lunge");
   for(const k in PLAN)PLAN[k].ex=PLAN[k].ex.map(e=>e.id==="bulgarian"?Object.assign({},L):e);S.v=3;save()}
 function syncNames(){S.names=S.names||{};for(const id in RETIRED)if(!S.names[id])S.names[id]=RETIRED[id];
