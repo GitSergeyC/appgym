@@ -141,7 +141,10 @@ function head(P){
   }else{
     if(P.open){const t=parse(today()),nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
       const left=Math.max(1,Math.round((nx-t)/864e5)),mon=nx.toLocaleDateString("ru-RU",{month:"short"}).replace(".","");
-      daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(()=>{const bl=M.budget?Math.min(M.budget-s.e,onAcc()):onAcc();return bl>0?"≈ "+fmt(bl/left)+" ₸/день":M.budget&&M.budget-s.e<=0?'<span class="neg">бюджет исчерпан</span>':"—"})()+"</b></div>"}
+      daily='<div class="daily"><span>До зарплаты ≈ '+left+" дн. (ждём "+M.sal.from+"–"+M.sal.to+" "+mon+')</span><b>'+(()=>{const all=onAcc();
+        if(!M.budget)return all>0?"≈ "+fmt(all/left)+" ₸/день":"—";
+        const bl=Math.min(M.budget-s.e,all);
+        return (bl>0?'<small class="dl">по бюджету</small>≈ '+fmt(bl/left)+" ₸/день":'<span class="neg">бюджет исчерпан</span>')+(all>0?'<small class="dl">всего денег ≈ '+fmt(all/left)+" ₸/день</small>":"")})()+"</b></div>"}
     else daily='<div class="daily"><span>Период закрыт</span><b class="'+(s.b>=0?"pos":"neg")+'">'+(s.b>=0?"осталось ":"перерасход ")+fmt(Math.abs(s.b))+" ₸</b></div>";
     const hasSal=M.tx.some(isSalaryTx);
     nav='<div class="pnav"><button type="button" data-per="-1" aria-label="Прошлый период"'+(per>0?"":" disabled")+'>‹</button><button type="button" class="ptitle" data-pp="open"><b>'+short(P.a)+" – "+(P.open?"сейчас":short(P.b))+' ▾</b><span>'+(hasSal?"от зарплаты "+short(P.a):"с "+short(P.a)+" · запиши зарплату, и период начнётся с неё")+(P.open&&hasSal?" · идёт "+(Math.round((parse(today())-parse(P.a))/864e5)+1)+"-й день":"")+'</span></button><button type="button" data-per="1" aria-label="Следующий период"'+(per<last?"":" disabled")+">›</button></div>";
@@ -611,17 +614,17 @@ function pushNotif(){
   if(!(window.Android&&Android.notify))return;
   if(M.notif===false){try{Android.notifyOff()}catch(e){}return}
   const t=today();let e=0,i=0;M.tx.forEach(x=>{if(x.d!==t)return;if(x.t==="exp")e+=x.a;if(x.t==="inc")i+=x.a});
-  const tail=sh=>{const a=allowPerDay(sh);return " · на счетах "+fmt(onAcc())+" ₸"+(a!=null?" · можно ≈"+fmt(a)+" ₸/день":"")};
+  const tail=sh=>{const a=allowPerDay(sh),w=allowPerDay(sh,true);return " · на счетах "+fmt(onAcc())+" ₸"+(a!=null?" · по бюджету ≈"+fmt(a)+" ₸/день":"")+(M.budget&&w!=null?" · всего денег ≈"+fmt(w)+" ₸/день":"")};
   const txt=(e||i?"Сегодня −"+fmt(e)+(i?" · +"+fmt(i):"")+" ₸":"Сегодня без трат")+tail(0);
   const tp=parse(t),h=S.dayEnd==null?4:+S.dayEnd,at=new Date(tp.getFullYear(),tp.getMonth(),tp.getDate()+1,h,0,30).getTime();
   try{if(Android.notify2)Android.notify2(txt,"Новый день, трат пока нет"+tail(1),at);else Android.notify(txt)}catch(err){}
 }
 // сколько можно тратить в день до зарплаты: остаток бюджета (или деньги на счетах, что меньше) / дни; sh=1 — завтра
-function allowPerDay(sh){
+function allowPerDay(sh,all){
   const P=periodOf(curPer());if(!P||!P.open)return null;const s=sums(P);
   const t=parse(today());t.setDate(t.getDate()+(sh||0));
   const nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
-  const left=Math.max(1,Math.round((nx-t)/864e5));const bl=M.budget?Math.min(M.budget-s.e,onAcc()):onAcc();
+  const left=Math.max(1,Math.round((nx-t)/864e5));const bl=M.budget&&!all?Math.min(M.budget-s.e,onAcc()):onAcc();
   return bl>0?bl/left:null;
 }
 setTimeout(pushNotif,1500);
