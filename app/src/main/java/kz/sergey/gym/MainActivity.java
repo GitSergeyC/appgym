@@ -81,7 +81,52 @@ public class MainActivity extends Activity {
         return getFilesDir().getAbsolutePath();
     }
 
-    private Bitmap loadForOcr(Uri u) throws Exception {
+    private Bitmap loadForOcr(Uri u) throws Exception { return contrast(loadRotated(u)); }
+
+    // Вырезаем светлый лист чека из фона (стол, рука) и делаем ч/б с локальным порогом:
+    // текстура дерева и тени перестают мешать распознаванию.
+    private Bitmap binarize(Bitmap b) {
+        int W = b.getWidth(), H = b.getHeight();
+        int[] px = new int[W * H];
+        b.getPixels(px, 0, W, 0, 0, W, H);
+        int[] hist = new int[256];
+        int[] lum = new int[W * H];
+        for (int i = 0; i < px.length; i++) {
+            int c = px[i], l = (((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114) / 1000;
+            lum[i] = l; hist[l]++;
+        }
+        int acc = 0, p90 = 255;
+        for (int v = 0; v < 256; v++) { acc += hist[v]; if (acc >= px.length * 0.9) { p90 = v; break; } }
+        int thr = (int) (p90 * 0.85);
+        int x0 = W, x1 = -1, y0 = H, y1 = -1;
+        for (int y = 0; y < H; y++) { int n = 0; for (int x = 0; x < W; x++) if (lum[y * W + x] > thr) n++; if (n > W * 0.25) { if (y < y0) y0 = y; y1 = y; } }
+        for (int x = 0; x < W; x++) { int n = 0; for (int y = 0; y < H; y++) if (lum[y * W + x] > thr) n++; if (n > H * 0.25) { if (x < x0) x0 = x; x1 = x; } }
+        if (x1 - x0 < W * 0.2 || y1 - y0 < H * 0.2) { x0 = 0; y0 = 0; x1 = W - 1; y1 = H - 1; }
+        Bitmap crop = Bitmap.createBitmap(b, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        int w = 1000, h = Math.max(1, Math.round(crop.getHeight() * 1000f / crop.getWidth()));
+        Bitmap sc = Bitmap.createScaledBitmap(crop, w, h, true);
+        int[] q = new int[w * h];
+        sc.getPixels(q, 0, w, 0, 0, w, h);
+        int[] L = new int[w * h];
+        for (int i = 0; i < q.length; i++) { int c = q[i]; L[i] = (((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114) / 1000; }
+        long[] ii = new long[(w + 1) * (h + 1)];
+        for (int y = 0; y < h; y++) { long row = 0; for (int x = 0; x < w; x++) { row += L[y * w + x]; ii[(y + 1) * (w + 1) + x + 1] = ii[y * (w + 1) + x + 1] + row; } }
+        int r = 25;
+        for (int y = 0; y < h; y++) {
+            int ya = Math.max(0, y - r), yb = Math.min(h, y + r + 1);
+            for (int x = 0; x < w; x++) {
+                int xa = Math.max(0, x - r), xb = Math.min(w, x + r + 1);
+                long sum = ii[yb * (w + 1) + xb] - ii[ya * (w + 1) + xb] - ii[yb * (w + 1) + xa] + ii[ya * (w + 1) + xa];
+                long mean = sum / ((long) (yb - ya) * (xb - xa));
+                q[y * w + x] = L[y * w + x] < mean - 12 ? 0xFF000000 : 0xFFFFFFFF;
+            }
+        }
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        out.setPixels(q, 0, w, 0, 0, w, h);
+        return out;
+    }
+
+    private Bitmap loadRotated(Uri u) throws Exception {
         BitmapFactory.Options o = new BitmapFactory.Options();
         o.inJustDecodeBounds = true;
         try (InputStream in = getContentResolver().openInputStream(u)) { BitmapFactory.decodeStream(in, null, o); }
@@ -101,6 +146,10 @@ public class MainActivity extends Activity {
             m.postRotate(rot);
             b = Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
         }
+        return b;
+    }
+
+    private Bitmap contrast(Bitmap b) {
         // серый и контраст: термобумага бледная
         Bitmap g = Bitmap.createBitmap(b.getWidth(), b.getHeight(), Bitmap.Config.ARGB_8888);
         ColorMatrix cm = new ColorMatrix();
@@ -120,16 +169,20 @@ public class MainActivity extends Activity {
             String text = null;
             TessBaseAPI tess = new TessBaseAPI();
             try {
-                Bitmap bmp = loadForOcr(u);
+                Bitmap raw = loadRotated(u);
+                Bitmap bin = binarize(raw), con = contrast(raw);
                 if (tess.init(tessDir(), "rus+eng")) {
-                    // два режима: «колонка» лучше для магазинных чеков, «блок» — для ресторанных строк «Название  1  350,00»
-                    tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN);
-                    tess.setImage(bmp);
-                    String a = tess.getUTF8Text();
-                    tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK);
-                    tess.setImage(bmp);
-                    String b2 = tess.getUTF8Text();
-                    text = (a == null ? "" : a) + "\n=====\n" + (b2 == null ? "" : b2);
+                    // три прохода: ч/б вырезанный чек «колонкой» и «блоком» + прежний серый; JS выберет лучший и сверит суммы
+                    StringBuilder sb = new StringBuilder();
+                    Object[][] runs = {{bin, TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN}, {bin, TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK}, {con, TessBaseAPI.PageSegMode.PSM_SINGLE_COLUMN}};
+                    for (Object[] r : runs) {
+                        tess.setPageSegMode((Integer) r[1]);
+                        tess.setImage((Bitmap) r[0]);
+                        String t = tess.getUTF8Text();
+                        if (sb.length() > 0) sb.append("\n=====\n");
+                        sb.append(t == null ? "" : t);
+                    }
+                    text = sb.toString();
                 }
             } catch (Throwable e) {
                 text = null;
