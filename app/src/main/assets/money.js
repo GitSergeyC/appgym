@@ -596,9 +596,21 @@ function pushNotif(){
   if(!(window.Android&&Android.notify))return;
   if(M.notif===false){try{Android.notifyOff()}catch(e){}return}
   const t=today();let e=0,i=0;M.tx.forEach(x=>{if(x.d!==t)return;if(x.t==="exp")e+=x.a;if(x.t==="inc")i+=x.a});
-  const P=periodOf(curPer()),s=sums(P);
-  try{Android.notify("Сегодня −"+fmt(e)+(i?" · +"+fmt(i):"")+" ₸ · остаток периода "+fmt(s.b)+" ₸")}catch(err){}
+  const tail=sh=>{const a=allowPerDay(sh);return " · на счетах "+fmt(onAcc())+" ₸"+(a!=null?" · можно ≈"+fmt(a)+" ₸/день":"")};
+  const txt=(e||i?"Сегодня −"+fmt(e)+(i?" · +"+fmt(i):"")+" ₸":"Сегодня без трат")+tail(0);
+  const tp=parse(t),h=S.dayEnd==null?4:+S.dayEnd,at=new Date(tp.getFullYear(),tp.getMonth(),tp.getDate()+1,h,0,30).getTime();
+  try{if(Android.notify2)Android.notify2(txt,"Новый день, трат пока нет"+tail(1),at);else Android.notify(txt)}catch(err){}
 }
+// сколько можно тратить в день до зарплаты: остаток бюджета (или деньги на счетах, что меньше) / дни; sh=1 — завтра
+function allowPerDay(sh){
+  const P=periodOf(curPer());if(!P||!P.open)return null;const s=sums(P);
+  const t=parse(today());t.setDate(t.getDate()+(sh||0));
+  const nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);
+  const left=Math.max(1,Math.round((nx-t)/864e5));const bl=M.budget?Math.min(M.budget-s.e,onAcc()):onAcc();
+  return bl>0?bl/left:null;
+}
+setTimeout(pushNotif,1500);
+{const pr=window.onAppResume;window.onAppResume=function(){try{pr&&pr()}catch(e){}pushNotif()}}
 window.onQuick=function(k){
   showPage("money");
   if(k==="qr"){try{Android.scanQR()}catch(e){}return}

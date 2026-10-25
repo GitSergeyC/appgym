@@ -140,30 +140,7 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    // уведомление-виджет: «+ Доход / + Расход / Чек» и итог дня
-    private PendingIntent quickIntent(String k, int code) {
-        Intent i = new Intent(this, MainActivity.class).putExtra("quick", k)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        return PendingIntent.getActivity(this, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    private void postNotif(String text) {
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (nm == null) return;
-        if (android.os.Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel("quick") == null) {
-            NotificationChannel ch = new NotificationChannel("quick", "Быстрый ввод денег", NotificationManager.IMPORTANCE_LOW);
-            ch.setShowBadge(false);
-            nm.createNotificationChannel(ch);
-        }
-        Notification.Builder b = android.os.Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "quick") : new Notification.Builder(this);
-        b.setSmallIcon(R.drawable.ic_stat).setContentTitle("Зал · деньги").setContentText(text)
-                .setOngoing(true).setShowWhen(false).setOnlyAlertOnce(true)
-                .setContentIntent(quickIntent("money", 10))
-                .addAction(new Notification.Action.Builder(null, "+ Доход", quickIntent("inc", 11)).build())
-                .addAction(new Notification.Action.Builder(null, "+ Расход", quickIntent("exp", 12)).build())
-                .addAction(new Notification.Action.Builder(null, "Чек QR", quickIntent("qr", 13)).build());
-        nm.notify(7, b.build());
-    }
+    private void postNotif(String text) { QuickNotif.post(this, text); }
 
     private void handleQuick(Intent intent) {
         if (intent == null) return;
@@ -324,8 +301,16 @@ public class MainActivity extends Activity {
             });
         }
 
+        // текст сейчас + текст, который подставится сам в начале следующего дня (после «конца дня», 4:00)
+        @JavascriptInterface
+        public void notify2(final String text, final String next, final double at) {
+            notify(text);
+            QuickNotif.schedule(MainActivity.this, next, (long) at);
+        }
+
         @JavascriptInterface
         public void notifyOff() {
+            QuickNotif.schedule(MainActivity.this, null, 0);
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (nm != null) nm.cancel(7);
         }
