@@ -107,13 +107,13 @@ function cmpPer(P){
   const n=Math.round((parse(today())-parse(P.a))/864e5);return Object.assign({},pp,{b:addDays(pp.a,Math.min(n,Math.round((parse(pp.b)-parse(pp.a))/864e5))),cut:n+1})}
 const inPer=(t,P)=>P&&t.d>=P.a&&t.d<=P.b;
 function sums(P){let e=0,i=0;M.tx.forEach(t=>{if(!inPer(t,P))return;if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});return{e,i,b:i-e}}
-const expLines=P=>{const r=[];M.tx.forEach(t=>{if(t.t==="exp"&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d,tid:t.id},l)))});return r};
+const expLines=(P,ty)=>{const r=[];M.tx.forEach(t=>{if(t.t===(ty||"exp")&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d,tid:t.id},l,{a:+l.a||0})))});return r};
 const onAcc=()=>M.acc.reduce((v,a)=>v+accBal(a),0);
 function accBal(a){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
 // ---------- состояние экрана ----------
 let per=null,sub="rec",openTx=null,delArm=null;
-const Wv={lvl:"cat",fc:null,fs:null,q:"",item:null};
+const Wv={lvl:"cat",fc:null,fs:null,q:"",item:null,t:"exp"};
 const root=$("money");
 const fab=document.createElement("button");fab.className="mfab";fab.type="button";fab.setAttribute("aria-label","Добавить операцию");
 fab.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
@@ -185,9 +185,9 @@ function agg(lines,lvl){const m={};lines.forEach(l=>{
   const o=m[k]=m[k]||{k,c:l.c,s:l.s,n:l.n,a:0,cnt:0,q:0,u:l.u};o.a+=l.a;o.cnt++;if(l.q)o.q+=+l.q});
   return Object.values(m).sort((x,y)=>y.a-x.a)}
 function where(P){
-  const prevP=cmpPer(P);let L=expLines(P),Lp=prevP?expLines(prevP):[];
-  let h='<div class="msearch"><span aria-hidden="true">⌕</span><input id="wq" type="text" placeholder="Найти: пиво, такси, грудка…" value="'+esc(Wv.q)+'" autocomplete="off">'+(Wv.q?'<button type="button" data-wq="x" aria-label="Очистить">×</button>':"")+"</div>";
-  if(!L.length&&!Wv.q)return h+'<div class="empty">В этом периоде расходов пока нет.</div>';
+  const prevP=cmpPer(P),inc=Wv.t==="inc";let L=expLines(P,Wv.t),Lp=prevP?expLines(prevP,Wv.t):[];
+  let h='<div class="seg small" role="group">'+[["exp","Расходы"],["inc","Доходы"]].map(([k,n])=>'<button type="button" data-wt="'+k+'" aria-pressed="'+(Wv.t===k)+'">'+n+"</button>").join("")+"</div>"+'<div class="msearch"><span aria-hidden="true">⌕</span><input id="wq" type="text" placeholder="Найти: пиво, такси, грудка…" value="'+esc(Wv.q)+'" autocomplete="off">'+(Wv.q?'<button type="button" data-wq="x" aria-label="Очистить">×</button>':"")+"</div>";
+  if(!L.length&&!Wv.q)return h+'<div class="empty">В этом периоде '+(inc?"доходов":"расходов")+' пока нет.</div>';
   if(Wv.q.trim().length>=3){const w=norm(Wv.q.trim()).slice(0,5);
     const hit=l=>norm(l.n+" "+l.s+" "+catOf(l.c).n).split(/[\s›/-]+/).some(p=>p.startsWith(w));
     return h+detail("Поиск: «"+Wv.q.trim()+"»",L.filter(hit),Lp.filter(hit),prevP,null,P)}
@@ -201,12 +201,12 @@ function where(P){
   const total=rows.reduce((s,r)=>s+r.a,0);
   if(lvl==="cat"&&!Wv.fc&&rows.length){const R=55,C=2*Math.PI*R;let off=0;
     const arcs=rows.map(x=>{const len=x.a/total*C;const s='<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="'+catOf(x.c).c+'" stroke-width="20" stroke-dasharray="'+Math.max(0,len-2).toFixed(2)+" "+C.toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 70 70)"/>';off+=len;return s}).join("");
-    h+='<div class="card"><div class="donutwrap"><svg class="donut" viewBox="0 0 140 140" role="img" aria-label="Расходы по категориям">'+arcs+'<text x="70" y="66" text-anchor="middle" class="dl">расходы</text><text x="70" y="84" text-anchor="middle" class="dv">'+fmt(total)+"</text></svg>"+
+    h+='<div class="card"><div class="donutwrap"><svg class="donut" viewBox="0 0 140 140" role="img" aria-label="'+(inc?"Доходы":"Расходы")+' по категориям">'+arcs+'<text x="70" y="66" text-anchor="middle" class="dl">'+(inc?"доходы":"расходы")+'</text><text x="70" y="84" text-anchor="middle" class="dv">'+fmt(total)+"</text></svg>"+
       '<div class="legend">'+rows.slice(0,5).map(x=>'<div><i style="background:'+catOf(x.c).c+'"></i><span>'+esc(catOf(x.c).n)+"</span><span>"+Math.round(x.a/total*100)+"%</span></div>").join("")+"</div></div></div>"}
-  h+='<div class="card"><div class="label">'+(lvl==="cat"?"На что ушло больше всего":lvl==="sub"?"Подкатегории":"Позиции")+" · "+fmt(total)+" ₸</div>"+
+  h+='<div class="card"><div class="label">'+(lvl==="cat"?(inc?"Откуда пришло больше всего":"На что ушло больше всего"):lvl==="sub"?"Подкатегории":"Позиции")+" · "+fmt(total)+" ₸</div>"+
     '<div class="muted">'+(lvl==="item"?"Нажми на позицию: история покупок и цена за единицу.":"Нажми на строку, чтобы провалиться глубже.")+(prevP?(prevP.cut?" Стрелка — сравнение с первыми "+prevP.cut+" днями прошлого периода.":" Стрелка — сравнение с прошлым периодом."):"")+'</div><div class="rank">'+
     rows.map((r,i)=>{const c=catOf(r.c),p=prev[r.k];let d="";
-      if(prevP){if(p==null)d='<small class="neg">новое</small>';else{const ch=Math.round((r.a-p)/p*100);d='<small class="'+(ch>5?"neg":ch<-5?"pos":"muted")+'">'+(ch>5?"▲ ":ch<-5?"▼ ":"")+Math.abs(ch)+"%</small>"}}
+      if(prevP){if(p==null)d='<small class="'+(inc?"pos":"neg")+'">новое</small>';else{const ch=Math.round((r.a-p)/p*100);d='<small class="'+(ch>5?(inc?"pos":"neg"):ch<-5?(inc?"neg":"pos"):"muted")+'">'+(ch>5?"▲ ":ch<-5?"▼ ":"")+Math.abs(ch)+"%</small>"}}
       const name=lvl==="cat"?c.n:lvl==="sub"?r.s:r.n;
       const subl=(lvl==="cat"?"":lvl==="sub"?c.n:c.n+" › "+r.s)+(lvl!=="cat"?" · ":"")+"× "+r.cnt+(r.q&&r.u?" · "+String(Math.round(r.q*10)/10).replace(".",",")+" "+r.u:"");
       return '<button type="button" class="rrow" data-row="'+esc(r.k)+'" data-lv="'+lvl+'"><span class="no">'+(i+1)+'</span><span class="nm"><b>'+esc(name)+"</b><small>"+esc(subl)+'</small><span class="mbar2"><i style="width:'+(r.a/rows[0].a*100)+"%;background:"+c.c+'"></i></span></span><span class="am">'+fmt(r.a)+d+"</span></button>"}).join("")+"</div></div>";
@@ -219,7 +219,7 @@ function detail(title,L,Lp,prevP,path,P){
   return '<div class="card mdetail"><div style="display:flex;justify-content:space-between;gap:8px;align-items:start"><div><b style="font-size:17px">'+esc(title)+"</b>"+(path?'<div class="muted">'+esc(path)+"</div>":"")+'</div>'+(Wv.item?'<button type="button" class="chipbtn" data-wq="close">Закрыть</button>':"")+"</div>"+
    '<div class="dnums"><div><b>'+fmt(a)+" ₸</b>за период</div><div><b>"+L.length+"</b>покупок, "+days+" дн.</div>"+
    (q&&u?'<div><b>'+String(Math.round(q*10)/10).replace(".",",")+" "+u+"</b>всего</div><div><b>"+fmt(a/q)+" ₸/"+u+"</b>средняя цена</div>":'<div><b>'+fmt(a/L.length)+' ₸</b>средний чек</div><div><b>'+fmt(a/span)+" ₸</b>в среднем в день</div>")+"</div>"+
-   (prevP?'<div class="kv"><span>'+(prevP.cut?"Те же "+prevP.cut+" дн. прошлого периода":"Прошлый период")+'</span><b class="'+(a>ap?"neg":"pos")+'">'+fmt(ap)+" ₸ "+(ap?(a>ap?"▲ ":"▼ ")+Math.abs(Math.round((a-ap)/ap*100))+"%":"")+"</b></div>":"")+
+   (prevP?'<div class="kv"><span>'+(prevP.cut?"Те же "+prevP.cut+" дн. прошлого периода":"Прошлый период")+'</span><b class="'+((a>ap)!==(Wv.t==="inc")?"neg":"pos")+'">'+fmt(ap)+" ₸ "+(ap?(a>ap?"▲ ":"▼ ")+Math.abs(Math.round((a-ap)/ap*100))+"%":"")+"</b></div>":"")+
    '<div class="muted">Нажми на покупку, чтобы исправить количество или сумму.</div><div class="hist">'+L.slice().sort((x,y)=>x.d<y.d?1:-1).slice(0,15).map(l=>'<button type="button" class="hrow" data-edit="'+l.tid+'"><span>'+short(l.d)+" · "+esc(l.n)+(l.q?" · "+String(l.q).replace(".",",")+" "+(l.u||""):"")+"</span><b>"+fmt(l.a)+" ✎</b></button>").join("")+(L.length>15?'<div><span>и ещё '+(L.length-15)+"</span></div>":"")+"</div></div>";
 }
 
@@ -232,6 +232,7 @@ function reports(P){
     h+='<div class="card"><div class="label">Бюджет на период</div><div class="ring"><div style="display:flex;flex-direction:column;gap:8px">'+
     '<div class="kv"><span>Бюджет</span><b>'+fmt(M.budget)+'</b></div><div class="kv"><span>Потрачено</span><b>'+fmt(s.e)+'</b></div><div class="kv" style="border-top:1px dashed var(--line);padding-top:8px"><span>Остаток</span><b class="'+(M.budget-s.e>=0?"pos":"neg")+'">'+fmt(M.budget-s.e)+"</b></div></div>"+
     '<svg viewBox="0 0 110 110" width="110" height="110" role="img" aria-label="Использовано '+Math.round(pct*100)+'% бюджета"><circle cx="55" cy="55" r="'+R+'" fill="none" class="rbg" stroke-width="10"/><circle cx="55" cy="55" r="'+R+'" fill="none" class="'+(pct>.9?"rwarn":"racc")+'" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+(pct*C).toFixed(1)+" "+C.toFixed(1)+'" transform="rotate(-90 55 55)"/><text x="55" y="61" text-anchor="middle" class="dv">'+Math.round(pct*100)+"%</text></svg></div></div>"}
+  h+=incomeCard(P,pp);
   h+='<div class="card"><div class="label">Еда и привычки</div>'+
    '<div class="kv"><span>Продукты домой</span><b>'+fmt(sum(l=>l.c==="food"&&l.s!=="Снеки и закуски"))+'</b></div>'+
    '<div class="kv"><span>Кафе, донеры, кофе, доставка</span><b>'+fmt(sum(l=>l.c==="cafe"))+'</b></div>'+
@@ -242,6 +243,26 @@ function reports(P){
    (M.acc.some(a=>{const bb=(M.bankBal||{})[a.id];return bb&&Math.abs(bb.v-accBal(a))>10})?'<div class="muted">Расхождение — значит, какая-то операция не записана или записана не на тот счёт. Найди её или нажми «Поставить остаток как в Kaspi».</div>':"")+"</div>"+
    loansCard()+'<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
   return h;
+}
+
+// ---------- доходы: по категориям и чаевые за смену ----------
+function incomeCard(P,pp){
+  const L=expLines(P,"inc");if(!L.length)return '<div class="card"><div class="label">Доходы</div><div class="muted">В этом периоде доходов пока нет.</div></div>';
+  const tot=L.reduce((s,l)=>s+l.a,0),Lp=pp?expLines(pp,"inc"):[],totp=Lp.reduce((s,l)=>s+l.a,0);
+  const by=agg(L,"cat");
+  let h='<div class="card"><div class="label">Доходы · '+fmt(tot)+' ₸</div>'+
+    (pp?'<div class="muted">'+(pp.cut?"Те же "+pp.cut+" дн. прошлого периода":"Прошлый период")+": "+fmt(totp)+" ₸"+(totp?' <span class="'+(tot>=totp?"pos":"neg")+'">'+(tot>=totp?"▲ ":"▼ ")+Math.abs(Math.round((tot-totp)/totp*100))+"%</span>":"")+"</div>":"")+
+    by.map(r=>'<div class="kv"><span>'+esc(catOf(r.c).n)+'</span><b>'+fmt(r.a)+' <small class="muted">'+Math.round(r.a/tot*100)+"%</small></b></div>").join("");
+  const T=L.filter(l=>l.c==="tips");
+  if(T.length){const days={};T.forEach(l=>days[l.d]=(days[l.d]||0)+l.a);const dk=Object.keys(days),tt=T.reduce((s,l)=>s+l.a,0);
+    const best=dk.sort((a,b)=>days[b]-days[a])[0],card=T.filter(l=>/карт|kaspi|перевод/i.test(l.n||"")).reduce((s,l)=>s+l.a,0);
+    const Tp=Lp.filter(l=>l.c==="tips"),dp=new Set(Tp.map(l=>l.d)).size,ttp=Tp.reduce((s,l)=>s+l.a,0);
+    h+='<div class="label" style="margin-top:10px">Чаевые</div>'+
+      '<div class="kv"><span>Смен с чаевыми</span><b>'+dk.length+"</b></div>"+
+      '<div class="kv"><span>В среднем за смену</span><b>'+fmt(tt/dk.length)+" ₸"+(dp?' <small class="'+(tt/dk.length>=ttp/dp?"pos":"neg")+'">было '+fmt(ttp/dp)+"</small>":"")+"</b></div>"+
+      '<div class="kv"><span>Лучшая смена</span><b>'+fmt(days[best])+" ₸ <small class=\"muted\">"+short(best)+"</small></b></div>"+
+      '<div class="kv"><span>На карту / наличными</span><b>'+fmt(card)+" / "+fmt(tt-card)+"</b></div>"}
+  return h+'<button type="button" class="chipbtn" data-incwhere="1">Подробно по доходам</button></div>';
 }
 
 // ---------- редактор категорий, счетов, настроек ----------
@@ -284,6 +305,8 @@ root.addEventListener("click",e=>{
   if(d.edit){openSheet(M.tx.find(t=>t.id===+d.edit));return}
   if(d.del){if(delArm!==+d.del){delArm=+d.del;renderMoney();setTimeout(()=>{if(delArm===+d.del){delArm=null;renderMoney()}},4000);return}
     removeTx(+d.del);delArm=null;openTx=null;rerender();toast("Запись удалена");return}
+  if(d.incwhere){Wv.t="inc";Wv.fc=Wv.fs=Wv.item=null;sub="where";renderMoney();window.scrollTo(0,0);return}
+  if(d.wt){Wv.t=d.wt;Wv.fc=Wv.fs=Wv.item=null;renderMoney();return}
   if(d.lvl){Wv.lvl=d.lvl;Wv.item=null;renderMoney();return}
   if(d.row){const p=d.row.split("|");if(d.lv==="cat"){Wv.fc=p[0];Wv.fs=null;Wv.item=null}else if(d.lv==="sub"){Wv.fc=p[0];Wv.fs=p[1];Wv.item=null}else Wv.item=d.row;renderMoney();window.scrollTo(0,0);return}
   if(d.cr){if(d.cr==="all")Wv.fc=Wv.fs=null;else if(d.cr==="cat")Wv.fs=null;Wv.item=null;renderMoney();return}
@@ -409,7 +432,7 @@ function renderSheet(){
       if(Fm.own)h+='<div class="addrow"><input class="inp" id="ownN" placeholder="Название позиции"><button type="button" class="chipbtn" data-x="ownok">Добавить</button></div><div class="hint">Позиция сохранится в «'+esc(sv.n)+'» и будет в списке в следующий раз.</div>'}
   }
   if(Fm.lines.length){
-    h+='<div class="lines">'+Fm.lines.map((l,i)=>'<div class="line'+(Fm.assign===i?" sel":"")+'"><div class="nm">'+(l.c?esc(l.n)+"<small>"+esc(catOf(l.c).n+" › "+l.s)+(l.f?" · питание":"")+"</small>":'<button type="button" class="pickit" data-as="'+i+'">Выбрать позицию</button>')+
+    h+='<div class="lines">'+Fm.lines.map((l,i)=>'<div class="line'+(Fm.assign===i?" sel":"")+'"><div class="nm">'+(l.c?esc(l.n||l.raw||l.s)+"<small>"+esc(catOf(l.c).n+" › "+l.s)+(l.f?" · питание":"")+"</small>":'<button type="button" class="pickit" data-as="'+i+'">Выбрать позицию</button>')+
       (l.raw?'<small class="raw" data-as="'+i+'">'+esc(l.raw)+(l.c?" · сменить":"")+"</small>":"")+"</div>"+
       (l.u?'<label class="mini">Кол-во, '+l.u+'<input class="inp" data-lq="'+i+'" inputmode="decimal" value="'+esc(l.q||"")+'"></label>':"<span></span>")+
       '<label class="mini">Сумма, ₸<input class="inp" data-la="'+i+'" inputmode="numeric" value="'+esc(l.a||"")+'"></label><button type="button" class="x" data-lx="'+i+'" aria-label="Убрать">×</button></div>').join("")+"</div>"+
