@@ -278,6 +278,7 @@ svg .dv{fill:var(--fg);font:600 16px var(--display)}
 .chip button{border:none;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px}
 .kk,.chips.items button.food::after{color:var(--accent);font-size:11px;font-style:normal}
 .money{padding-bottom:84px}
+.phist{margin-top:6px}.phist .frow small{display:inline;color:var(--muted);margin-left:6px}
 .mfab{position:fixed;z-index:29;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(74px + var(--mb,0px) + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:var(--bg);box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .mfab svg{width:28px;height:28px}
 .msheet{position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;padding-top:env(safe-area-inset-top,0px)}
@@ -496,6 +497,7 @@ body{margin:0}
     <label class="fl" id="bPgL" hidden>Вес упаковки, г<input class="inp" id="bPg" type="text" inputmode="numeric" placeholder="180"></label>
     <label class="fl" id="bPwL">Сколько весит 1 штука, г <small>(яйцо, банан — чтобы считать штуками)</small><input class="inp" id="bPw" type="text" inputmode="numeric" placeholder="необязательно"></label>
     <div class="muted" id="bPrInfo"></div>
+    <div id="bHist"></div>
     <label class="fl">Штрихкод (необязательно)<input class="inp" id="bB" type="text" inputmode="numeric"></label>
     <div class="msg" id="bMsg" hidden></div>
     <div class="pickrow" style="flex-wrap:wrap">

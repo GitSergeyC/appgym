@@ -321,13 +321,28 @@ root.addEventListener("click",e=>{const r=e.target.closest(".tx");if(!r||e.targe
 function pieceWeight(b){const m=b.n.match(/1 шт ≈ (\d+) г/);return m?+m[1]:b.pw?+b.pw:0}
 function updatePrices(tx){(tx.lines||[]).forEach(l=>{if(!l.f||!l.a||!l.q)return;const b=S.base.find(x=>x.n===l.f);if(!b)return;
   let perKg=0;if(l.u==="кг"||l.u==="л")perKg=l.a/l.q;else if(l.u==="шт"){const w=pieceWeight(b);if(w)perKg=l.a/l.q/w*1000}
-  if(perKg>0){b.pkg=Math.round(perKg);b.pd=tx.d}})}
+  if(perKg>0){b.pkg=Math.round(perKg);b.pd=tx.d;
+    b.ph=(b.ph||[]).filter(h=>h.t!==tx.id);b.ph.push({d:tx.d,p:b.pkg,w:tx.note||"",t:tx.id});b.ph.sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:0);b.ph=b.ph.slice(-30);
+    const last=b.ph[b.ph.length-1];b.pkg=last.p;b.pd=last.d}})}
+// история цен продукта: последняя, минимум, средняя, где дешевле
+window.priceHist=function(b){
+  if(!b||!b.ph||!b.ph.length)return"";const H=b.ph,ps=H.map(h=>h.p),mn=Math.min(...ps),avg=ps.reduce((s,v)=>s+v,0)/ps.length,mi=H.find(h=>h.p===mn);
+  const dd=d=>d.slice(8)+"."+d.slice(5,7);
+  return '<div class="phist"><div class="label">История цен, ₸/кг</div>'+(H.length>1?'<div class="muted">Сейчас '+fmt(H[H.length-1].p)+" · мин "+fmt(mn)+(mi.w&&mi.w!=="вручную"?" ("+esc0(mi.w)+")":"")+" · средняя "+fmt(avg)+"</div>":"")+
+    H.slice().reverse().slice(0,8).map(h=>'<div class="frow"><span>'+dd(h.d)+(h.w?" <small>"+esc0(h.w)+"</small>":"")+"</span><span></span><span>"+fmt(h.p)+"</span></div>").join("")+"</div>"};
 function gramsOf(l){const q=+l.q||0;if(l.u==="л"||l.u==="кг")return Math.round((q||(l.u==="л"?0.5:0.3))*1000);return Math.round((q||1)*(PORTION[l.f]||300))}
 function linkFood(tx){if(!tx.foodLink)return;(tx.lines||[]).forEach(l=>{if(!l.f||!EAT_CATS.includes(l.c))return;const b=S.base.find(x=>x.n===l.f);if(!b)return;
   S.food[tx.d]=S.food[tx.d]||[];S.food[tx.d].push({n:b.n,g:gramsOf(l),k:b.k,p:b.p,f:b.f,c:b.c,cost:l.a,tx:tx.id})})}
 function unlinkFood(tx){if(!tx)return;Object.keys(S.food).forEach(k=>{S.food[k]=S.food[k].filter(e=>e.tx!==tx.id)})}
-function removeTx(id){const t=M.tx.find(x=>x.id===id);unlinkFood(t);M.tx=M.tx.filter(x=>x.id!==id)}
-const costOf=e=>e.cost!=null?e.cost:(()=>{const b=S.base.find(x=>x.n===e.n);return b&&b.pkg?e.g*b.pkg/1000:null})();
+function removeTx(id){const t=M.tx.find(x=>x.id===id);unlinkFood(t);M.tx=M.tx.filter(x=>x.id!==id);
+  S.base.forEach(b=>{if(!b.ph||!b.ph.some(h=>h.t===id))return;b.ph=b.ph.filter(h=>h.t!==id);const l=b.ph[b.ph.length-1];if(l){b.pkg=l.p;b.pd=l.d}})}
+// цена съеденного фиксируется в момент записи (e.pc, ₸/кг): новая цена в Базе не переписывает прошлые дни
+const costOf=e=>e.cost!=null?e.cost:e.pc!=null?e.g*e.pc/1000:(()=>{const b=S.base.find(x=>x.n===e.n);return b&&b.pkg?e.g*b.pkg/1000:null})();
+function freezePrices(){let ch=0;const by={};S.base.forEach(b=>{if(b.pkg)by[b.n]=b.pkg});
+  for(const k in S.food)(S.food[k]||[]).forEach(e=>{if(e.cost==null&&e.pc==null&&by[e.n]){e.pc=by[e.n];ch++}});return ch}
+S.base.forEach(b=>{if(b.pkg&&!b.ph)b.ph=[{d:b.pd||today(),p:b.pkg,w:""}]});
+freezePrices();save();
+{const os=window.save;window.save=function(){try{freezePrices()}catch(e){}return os.apply(this,arguments)}}
 function renderCost(){
   const box=$("costCard");if(!box)return;const E=(S.food[dkey(day)]||[]);
   if(!E.length){box.innerHTML='<div class="label">Еда стоила</div><div class="muted">Добавь еду в дневник: цены продуктов берутся из покупок во вкладке «Деньги».</div>';return}

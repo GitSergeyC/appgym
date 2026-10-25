@@ -211,7 +211,7 @@ function openBase(item){
   $("bName").value=item?item.n:$("bq").value.trim();
   $("bK").value=item?item.k:"";$("bP").value=item?item.p:"";$("bF").value=item?item.f:"";$("bC").value=item?item.c:"";
   $("bB").value=item&&item.b||"";$("bPw").value=item&&item.pw||"";
-  {const pp=item&&item.pp;$("bPu").value=pp?pp.u:"kg";$("bPr").value=pp?pp.a:(item&&item.pkg||"");$("bPg").value=pp&&pp.g||"";priceInfo()}$("bDel").hidden=!item;$("bDel").textContent="Удалить";
+  {const pp=item&&item.pp;$("bPu").value=pp?pp.u:"kg";$("bPr").value=pp?pp.a:(item&&item.pkg||"");$("bPg").value=pp&&pp.g||"";priceInfo();$("bHist").innerHTML=window.priceHist?priceHist(item):""}$("bDel").hidden=!item;$("bDel").textContent="Удалить";
   $("bMsg").hidden=true;$("bForm").hidden=false;window.scrollTo(0,0);$("bName").focus();
 }
 $("bq").addEventListener("input",renderBase);
@@ -232,10 +232,12 @@ $("bList").addEventListener("click",ev=>{const b=ev.target.closest("button");if(
 $("bCancel").onclick=()=>{$("bForm").hidden=true;editName=null};
 $("bForm").addEventListener("submit",ev=>{
   ev.preventDefault();const it=readProd("b");if(!it.n)return;
-  const old=editName!=null?findByName(editName):null;if(old){if(old.pd)it.pd=old.pd}
+  const old=editName!=null?findByName(editName):null;if(old){if(old.pd)it.pd=old.pd;if(old.ph)it.ph=old.ph;if(old.dish)it.dish=old.dish}
   const pw=num($("bPw").value),pr=calcPkg();if(pw>0)it.pw=pw;
   if(pr.err){$("bMsg").textContent=pr.err;$("bMsg").hidden=false;return}
-  if(pr.pkg){it.pkg=pr.pkg;it.pp=pr.pp;if(!old||old.pkg!==pr.pkg)it.pd=new Date().toISOString().slice(0,10)}
+  if(pr.pkg){it.pkg=pr.pkg;it.pp=pr.pp;if(!old||old.pkg!==pr.pkg){it.pd=todayKey();(it.ph=it.ph||[]).push({d:it.pd,p:pr.pkg,w:"вручную"});it.ph=it.ph.slice(-30)
+    // поправил цену вручную — сегодняшняя еда этого продукта пересчитается (на случай опечатки), прошлые дни — нет
+    if(old)(S.food[todayKey()]||[]).forEach(e=>{if(e.n===old.n&&e.pc===old.pkg)e.pc=pr.pkg})}}
   if(it.k>900){const k=Math.round(it.k/4.184*10)/10;$("bK").value=k;$("bMsg").textContent="Больше 900 ккал на 100 г не бывает (даже у масла ~750). Похоже, это кДж — перевёл: "+k+" ккал. Проверь и нажми «Сохранить» ещё раз.";$("bMsg").hidden=false;return}
   if(pw>=1000&&!warnPw){warnPw=true;$("bMsg").textContent="1 штука весит "+pw+" г? Если это цена — перенеси её в поле «Цена». Нажми «Сохранить» ещё раз, если всё верно.";$("bMsg").hidden=false;return}
   const b=$("bB").value.trim();if(b)it.b=b;
