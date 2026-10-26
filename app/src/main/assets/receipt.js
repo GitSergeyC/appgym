@@ -43,12 +43,16 @@ const RULES=[
  [/оливк/,"food","Бакалея и соусы","Масло оливковое"],[/кетчуп/,"food","Бакалея и соусы","Кетчуп"],[/майонез/,"food","Бакалея и соусы","Майонез"],[/соев/,"food","Бакалея и соусы","Соевый соус"],[/мука/,"food","Бакалея и соусы","Мука"],[/консерв/,"food","Бакалея и соусы","Консервы"],
  [/протеин|whey/,"food","Спортпит","Протеин"],[/креатин/,"food","Спортпит","Креатин"],[/батончик/,"food","Спортпит","Протеиновые батончики"],[/витамин/,"health","Аптека","Витамины"],
  [/туалетн|бумага/,"home","Бытовая химия","Туалетная бумага"],[/порошок|ariel|tide|persil|миф\b/,"home","Бытовая химия","Порошок"],[/fairy|для посуд/,"home","Бытовая химия","Для посуды"],
- [/губк|салфет|тряпк/,"home","Бытовая химия","Губки и тряпки"],[/мусор/,"home","Бытовая химия","Пакеты для мусора"],[/пакет/,"home","Товары для дома","Мелочи"],
+ [/губк|салфет|тряпк/,"home","Бытовая химия","Губки и тряпки"],[/мусор/,"home","Бытовая химия","Пакеты для мусора"],[/па[кхk][еe]т/,"home","Товары для дома","Мелочи"],
  [/шампун/,"beauty","Гигиена","Шампунь"],[/зубн|colgate|blend|щетк/,"beauty","Гигиена","Зубная паста и щётка"],[/гель\s*д.*душ/,"beauty","Гигиена","Гель для душа"],
  [/дезодор|антиперсп/,"beauty","Гигиена","Дезодорант"],[/мыло/,"beauty","Гигиена","Мыло"],[/станк|gillette|бритв/,"beauty","Бритьё","Станки"]
 ];
 function itemOf(c,s,n){const cat=MoneyAPI.catOf(c);const sub=cat.s&&cat.s.find(x=>x.n===s);const it=sub&&sub.it.find(x=>x.n===n);return it?{c,s,it}:null}
-function match(raw){
+// распознавание путает похожие буквы: «nAXeT» = «ПАКЕТ»
+const LOOK={a:"а",b:"в",c:"с",e:"е",h:"н",k:"к",m:"м",n:"п",o:"о",p:"р",t:"т",u:"и",x:"х",y:"у",r:"г"};
+const toCyr=s=>String(s).toLowerCase().replace(/[a-z]/g,ch=>LOOK[ch]||ch);
+function match(raw){const r=match0(raw);if(r||!/[a-z]/i.test(raw))return r;return match0(toCyr(raw))}
+function match0(raw){
   const k=key(raw);if(M.rmap[k]){const m=M.rmap[k],r=itemOf(m.c,m.s,m.n);if(r)return r}
   const n=norm(raw);for(const [re,c,s,i] of RULES)if(re.test(n)){const r=itemOf(c,s,i);if(r)return r}
   // запасной вариант: слово из чека совпадает с началом названия позиции (не подкатегории)
@@ -129,7 +133,7 @@ function parseOcr(text){
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!seller){const m=x.match(/small|magnum|galmart|анвар|арзан|metro/i);if(m)seller=sellerName(m[0])}
     if(!seller&&i<6&&/cafe|кафе|ресторан|restaurant|\bbar\b|\bбар\b|coffee|кофейн|lounge|pub|паб/i.test(x)&&!/зал\s*:/i.test(x))seller=x.replace(/[*_=~|]+/g," ").replace(/^\W*\S{1,2}\s+(?=[A-ZА-Я])/,"").replace(/\s+/g," ").trim().slice(0,30);
-    if(!d){let m=x.match(/(\d{2})[.\/-](\d{2})[.\/-](20\d{2})/);if(m)d=m[3]+"-"+m[2]+"-"+m[1];else{m=x.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m)d=m[1]+"-"+m[2]+"-"+m[3]}}
+    if(!d){let m=x.match(/(\d{2})[.\/-](\d{2})[.\/-](20\d{2})/);if(m&&okDate(m[3]+"-"+m[2]+"-"+m[1]))d=m[3]+"-"+m[2]+"-"+m[1];else{m=x.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m&&okDate(m[1]+"-"+m[2]+"-"+m[3]))d=m[1]+"-"+m[2]+"-"+m[3]}}
     if((/итог|к\s*оплат|k\s*onnat|оплате|безналичн/i.test(x))&&!/промежут/i.test(x)&&!total){const m=x.match(NUM)||(L[i+1]||"").match(NUM);
       if(m)total=num(m[0]);else{const z=normAmt(x).match(/(\d+(?:\.\d{1,2})?)\s*\W*$/);if(z&&/[.,]|\d{3}/.test(z[1]))total=parseFloat(z[1])}}
     // M-Mart и др.: «ntin 0200186015410   720.00*1=720.00» (цена*кол-во=сумма; «*» часто читается как % или #)
@@ -167,6 +171,9 @@ function parseOcr(text){
   }
   return{items,total,d,seller,rest};
 }
+// дата из чека: настоящая, не в будущем и не старше 3 месяцев — иначе это ошибка распознавания
+function okDate(k){const [y,m,d]=k.split("-").map(Number),t=new Date(y,m-1,d);if(t.getMonth()!==m-1||t.getDate()!==d)return false;
+  const now=Date.now();return t.getTime()<=now+864e5&&t.getTime()>now-92*864e5}
 function normAmt(x){return x.replace(/(\d)\s*[.,]\s*(\d{1,2})(?!\d)/g,"$1.$2").replace(/(\d{3})\s(\d{2})(?!\d)\s*\W*$/,"$1.$2")}
 // Java присылает текст двух режимов распознавания через «=====» — берём тот, что лучше разобрался
 function bestOcr(text){
@@ -189,6 +196,7 @@ function bestOcr(text){
       const pick=c.sort((a,b)=>fr(b)-fr(a))[0];if(pick&&fr(pick)>fr(it.total)){it.total=pick;it.price=pick/(it.qty||1)}});
     if(best.items.length===1&&best.total&&Math.abs(best.items[0].total-best.total)>1){const it=best.items[0];
       if(fr(best.total)>=fr(it.total)){it.total=best.total;it.price=best.total/(it.qty||1)}else best.total=it.total}
+    {const dv={};all.forEach(r=>{if(r.d)dv[r.d]=(dv[r.d]||0)+1});const ds=Object.keys(dv).sort((a,b)=>dv[b]-dv[a]);if(ds.length)best.d=ds[0]}
     all.forEach(r=>{if(!best.d&&r.d)best.d=r.d;if(!best.seller&&r.seller)best.seller=r.seller;best.rest=best.rest||r.rest})}
   return best||parseOcr("");
 }
