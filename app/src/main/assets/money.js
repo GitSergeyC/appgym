@@ -108,8 +108,14 @@ function cmpPer(P){
 const inPer=(t,P)=>P&&t.d>=P.a&&t.d<=P.b;
 function sums(P){let e=0,i=0;M.tx.forEach(t=>{if(!inPer(t,P))return;if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});return{e,i,b:i-e}}
 const expLines=(P,ty)=>{const r=[];M.tx.forEach(t=>{if(t.t===(ty||"exp")&&inPer(t,P))(t.lines||[]).forEach(l=>r.push(Object.assign({d:t.d,tid:t.id},l,{a:+l.a||0})))});return r};
+// последний остаток «Доступно» из Kaspi для счёта и что по записям было в тот же момент
+function kRef(a){let r=null;
+  M.tx.forEach(t=>{if(t.kav==null||t.acc!==a.id||(a.sd&&t.id<=a.sid))return;if(!r||(t.kt||0)>r.time)r={time:t.kt||0,v:t.kav,d:t.d,act:accBal(a,t.id)}});
+  (M.kin||[]).forEach(k=>{if(k.avail==null||k.acc!==a.id)return;if(!r||k.time>r.time)r={time:k.time,v:k.avail,d:k.d,act:accBal(a)+(window.kaspiPending?kaspiPending(a.id,k.time):0)}});
+  if(r)r.diff=Math.round(r.v-r.act);return r}
+let accEd=null;
 const onAcc=()=>M.acc.reduce((v,a)=>v+accBal(a),0);
-function accBal(a){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
+function accBal(a,upto){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(upto!=null&&x.id>upto)return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
 // ---------- состояние экрана ----------
 let per=null,sub="rec",openTx=null,delArm=null;
@@ -238,9 +244,10 @@ function reports(P){
    '<div class="kv"><span>Кафе, донеры, кофе, доставка</span><b>'+fmt(sum(l=>l.c==="cafe"))+'</b></div>'+
    '<div class="kv"><span>Алкоголь и закуски</span><b>'+fmt(sum(l=>l.s==="Алкоголь"||l.s==="Снеки и закуски"))+'</b></div>'+
    '<div class="kv"><span>Сигареты</span><b>'+fmt(sum(l=>l.s==="Сигареты"))+'</b></div></div>'+
-   '<div class="card"><div class="label">Счета</div>'+M.acc.map(a=>{const bb=(M.bankBal||{})[a.id];const diff=bb?Math.round(bb.v-accBal(a)):0;
-     return '<div class="accrow"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(bb?'<small class="muted" style="display:block">по Kaspi '+short(bb.d)+": "+fmt(bb.v)+" ₸"+(Math.abs(diff)>10?' · <span class="neg">расхождение '+(diff>0?"+":"−")+fmt(Math.abs(diff))+'</span><br><button type="button" class="chipbtn" data-kfix="'+a.id+'" style="margin-top:6px">Поставить остаток как в Kaspi</button>':" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"}).join("")+
-   (M.acc.some(a=>{const bb=(M.bankBal||{})[a.id];return bb&&Math.abs(bb.v-accBal(a))>10})?'<div class="muted">Расхождение — значит, какая-то операция не записана или записана не на тот счёт. Найди её или нажми «Поставить остаток как в Kaspi».</div>':"")+"</div>"+
+   '<div class="card"><div class="label">Счета</div><div class="muted">Нажми на счёт, чтобы вписать, сколько на нём сейчас.</div>'+M.acc.map(a=>{const r=kRef(a);
+     return '<div class="accrow" data-acced="'+a.id+'" style="cursor:pointer"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(r?'<small class="muted" style="display:block">по Kaspi '+short(r.d)+": "+fmt(r.v)+" ₸"+(Math.abs(r.diff)>10?' · <span class="neg">расхождение '+(r.diff>0?"+":"−")+fmt(Math.abs(r.diff))+'</span><br><button type="button" class="chipbtn" data-kfix="'+a.id+'" style="margin-top:6px">Поставить как в Kaspi</button>':" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"+
+       (accEd===a.id?'<div class="addrow"><input class="inp" id="accNow" inputmode="numeric" placeholder="Сейчас на счёте, ₸" value="'+Math.round(accBal(a))+'"><button type="button" class="chipbtn" data-accsave="'+a.id+'">Сохранить</button></div><div class="muted">Всё, что записано до этой минуты, на остаток больше не влияет.</div>':"")}).join("")+
+   (M.acc.some(a=>{const r=kRef(a);return r&&Math.abs(r.diff)>10})?'<div class="muted">Расхождение — какая-то операция не записана или записана не на тот счёт. Найди её, нажми «Поставить как в Kaspi» или нажми на счёт и впиши остаток сам.</div>':"")+"</div>"+
    loansCard()+'<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
   return h;
 }
@@ -415,6 +422,7 @@ function renderSheet(){
    (hasPhoto()?'<button type="button" data-x="photo" aria-label="Фото чека">'+svg("camera")+"</button>":"")+"</div>";
   if(Fm.photoAsk)h+='<div class="pickrow"><button type="button" class="chipbtn" data-ph="cam">Сфотографировать чек</button><button type="button" class="chipbtn" data-ph="gal">Выбрать из галереи</button></div><div class="hint">Чек целиком в кадре, ровно, при хорошем свете. Длинный чек можно снять в два фото и добавить по очереди.</div>';
   if(Fm.msg)h+='<div class="foodlink voicebox">'+esc(Fm.msg).split("\n").map(x=>"<div>"+x+"</div>").join("")+"</div>";
+  if(Fm.link&&window.Android&&Android.openUrl)h+='<button type="button" class="chipbtn" data-x="openlink" style="margin-bottom:8px">Открыть чек на сайте ОФД</button>';
   if(Fm.sug&&Fm.sug.length)h+='<div class="label">Раньше выбирал</div><div class="chips">'+Fm.sug.map((g,i)=>{const c=catOf(g.c);return '<button type="button" data-sug="'+i+'" aria-pressed="'+(Fm.c===g.c&&Fm.s===g.s)+'">'+esc((c?c.n:"")+(g.s?" › "+g.s:"")+(g.n?" › "+g.n:""))+"</button>"}).join("")+"</div>";
   if(Fm.assign!=null&&Fm.lines[Fm.assign])h+='<div class="assign"><span>Выбери позицию для «<b>'+esc(Fm.lines[Fm.assign].raw||Fm.lines[Fm.assign].n||"")+'</b>»: найди в строке выше или выбери категорию ниже.</span><button type="button" class="chipbtn" data-x="unassign">Готово</button></div>';
   const found=Fm.q?findItems(Fm.q,Fm.t):[];
@@ -469,6 +477,7 @@ sheet.addEventListener("click",e=>{
   else if(d.x==="unassign"){Fm.assign=null;renderSheet()}
   else if(d.x==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}}
   else if(d.x==="photo"){Fm.photoAsk=!Fm.photoAsk;renderSheet()}
+  else if(d.x==="openlink"){try{Android.openUrl(Fm.link)}catch(err){}}
   else if(d.ph){Fm.photoAsk=false;renderSheet();try{Android.photo(d.ph)}catch(err){toast("Камера недоступна")}}
   else if(d.lx!=null){Fm.lines.splice(+d.lx,1);renderSheet()}
   else if(d.x==="own"){Fm.own=true;renderSheet();$("ownN").focus()}
@@ -501,7 +510,7 @@ function saveSheet(){
     if(Fm.loan&&tx.c==="credit")tx.loan=Fm.loan;
     if(Fm.kin)tx.kaspi=true;
   }
-  if(Fm.edit){const old=M.tx.find(x=>x.id===Fm.edit);unlinkFood(old);tx.id=Fm.edit;M.tx[M.tx.indexOf(old)]=tx}
+  if(Fm.edit){const old=M.tx.find(x=>x.id===Fm.edit);unlinkFood(old);tx.id=Fm.edit;if(old.kav!=null){tx.kav=old.kav;tx.kt=old.kt}if(old.kaspi)tx.kaspi=true;M.tx[M.tx.indexOf(old)]=tx}
   else{tx.id=M.nid++;M.tx.push(tx)}
   if(tx.t==="exp"){updatePrices(tx);linkFood(tx);if(window.rememberReceipt)rememberReceipt(tx,Fm.lines.filter(l=>l.raw&&l.c!=="other"))}
   if(Fm.kin&&window.kaspiDone)kaspiDone(Fm.kin,tx);
@@ -668,15 +677,19 @@ window.MoneyAPI={openPrefilled(o){openSheet();setType(o.t);
   setTab(x){sub=x;renderMoney()},accOf,today,M,svg,PALETTE,save,rerender:()=>{save();if(!$("pageMoney").hidden)renderMoney()},catOf,findItems,items:t=>itemIndex().filter(x=>x.t===t),
   loading(msg){Fm={t:"exp",c:null,s:null,lines:[],acc:M.acc[M.acc.length>1?1:0].id,to:M.acc[0].id,a:"",d:today(),foodOn:true,q:"",note:"",own:null,busy:msg};
     sheet.hidden=false;document.body.style.overflow="hidden";renderSheet()},
-  openReceipt(o){if(sheet.hidden)this.loading("");Fm.busy=null;Fm.lines=o.lines;Fm.d=o.d||Fm.d;Fm.note=o.note||"";Fm.qr=o.qr;Fm.msg=o.msg;Fm.foodOn=false;
+  openReceipt(o){if(sheet.hidden)this.loading("");Fm.busy=null;Fm.lines=o.lines;Fm.d=o.d||Fm.d;Fm.note=o.note||"";Fm.qr=o.qr;Fm.msg=o.msg;Fm.foodOn=false;Fm.link=o.link||null;
+    if(o.edit)Fm.edit=o.edit;if(o.acc)Fm.acc=o.acc;
     if(!o.lines.length&&o.total)Fm.a=String(Math.round(o.total));
     const un=o.lines.findIndex(l=>!l.c);Fm.assign=un>=0?un:null;if(o.lines[0]&&o.lines[0].c)Fm.c=o.lines[0].c;renderSheet()}};
 window.addEventListener("DOMContentLoaded",()=>{if(!$("pageMoney").hidden)renderMoney()});
 sheet.addEventListener("click",e=>{const b=e.target.closest("[data-sug]");if(!b||!Fm.sug)return;e.stopPropagation();
   const g=Fm.sug[+b.dataset.sug],amt=(Fm.lines[0]&&Fm.lines[0].a)||Fm.a;Fm.c=g.c;Fm.s=g.s||null;
   if(g.n){Fm.lines=[{c:g.c,s:g.s,n:g.n,a:String(amt)}];Fm.a=""}else{Fm.lines=[];Fm.a=String(amt)}renderSheet()},true);
-document.addEventListener("click",e=>{const b=e.target.closest("[data-kfix]");if(!b)return;
-  const a=M.acc.find(x=>x.id===b.dataset.kfix),bb=M.bankBal[a.id];if(!a||!bb)return;
-  const target=bb.v-(window.kaspiPending?kaspiPending(a.id,bb.time):0);a.start=(+a.start||0)+Math.round(target-accBal(a));
-  save();renderMoney();toast("Остаток "+a.n+": "+fmt(accBal(a))+" ₸")});
+document.addEventListener("click",e=>{
+  const ed=e.target.closest("[data-acced]");if(ed&&!e.target.closest("button")){accEd=accEd===ed.dataset.acced?null:ed.dataset.acced;renderMoney();const f=$("accNow");if(f){f.focus();f.select()}return}
+  const sv=e.target.closest("[data-accsave]");if(sv){const a=M.acc.find(x=>x.id===sv.dataset.accsave),v=+String($("accNow").value).replace(/[^\d-]/g,"");
+    if(a&&!isNaN(v)){a.start=v;a.sd=today();a.sid=M.nid-1;accEd=null;save();renderMoney();toast(a.n+": "+fmt(v)+" ₸")}return}
+  const b=e.target.closest("[data-kfix]");if(!b)return;
+  const a=M.acc.find(x=>x.id===b.dataset.kfix),r=a&&kRef(a);if(!r)return;
+  a.start=(+a.start||0)+r.diff;save();renderMoney();toast("Остаток "+a.n+": "+fmt(accBal(a))+" ₸")});
 })();

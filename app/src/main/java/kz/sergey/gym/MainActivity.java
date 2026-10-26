@@ -206,11 +206,13 @@ public class MainActivity extends Activity {
 
     // читает позиции со страницы чека consumer.oofd.kz после того, как её соберут скрипты
     private static final String EXTRACT =
-        "(function(){try{var rows=document.querySelectorAll('app-ticket-items .row-position');if(!rows.length)return null;" +
+        "(function(){try{var rows=document.querySelectorAll('app-ticket-items .row-position');if(!rows.length)rows=document.querySelectorAll('.row-position,[class*=ticket-item],[class*=position-row]');if(!rows.length)return null;" +
         "var items=[];for(var i=0;i<rows.length;i++){var c=rows[i].children,a=[];for(var j=0;j<c.length;j++)a.push((c[j].innerText||c[j].textContent||'').trim());items.push(a);}" +
         "var h=document.querySelector('app-ticket-header'),seller='',ht=h?(h.innerText||h.textContent||''):'';" +
         "if(h){var ps=document.querySelectorAll('p');for(var k=0;k<ps.length;k++){if(h.compareDocumentPosition(ps[k])&4){var f=ps[k].firstChild;seller=((f&&f.textContent)||ps[k].textContent||'').trim();break;}}}" +
         "return JSON.stringify({items:items,header:ht,seller:seller});}catch(e){return null}})()";
+
+    private static final String BODY = "(function(){try{return (document.body.innerText||'').slice(0,4000)}catch(e){return ''}})()";
 
     private final java.util.ArrayList<String> pendingJs = new java.util.ArrayList<>();
     private void js(final String code) {
@@ -448,17 +450,32 @@ public class MainActivity extends Activity {
                         w.evaluateJavascript(EXTRACT, v -> {
                             if (done[0]) return;
                             boolean ok = v != null && !v.equals("null") && v.length() > 4;
-                            if (ok || tries[0] >= 25) {
+                            if (ok) {
                                 done[0] = true;
-                                js("window.onReceipt&&onReceipt(" + (ok ? v : "null") + "," + JSONObject.quote(url) + ")");
+                                js("window.onReceipt&&onReceipt(" + v + "," + JSONObject.quote(url) + ")");
                                 rootView.removeView(w);
                                 w.destroy();
+                            } else if (tries[0] >= 25) {
+                                done[0] = true;
+                                // позиций нет — отдаём текст страницы: по нему видно «чек не найден» и т.п.
+                                w.evaluateJavascript(BODY, body -> {
+                                    js("window.onReceipt&&onReceipt(null," + JSONObject.quote(url) + "," + (body == null ? "\"\"" : body) + ")");
+                                    rootView.removeView(w);
+                                    w.destroy();
+                                });
                             } else {
                                 h.postDelayed(this, 1000);
                             }
                         });
                     }
                 }, 2500);
+            });
+        }
+
+        @JavascriptInterface
+        public void openUrl(final String url) {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
             });
         }
 

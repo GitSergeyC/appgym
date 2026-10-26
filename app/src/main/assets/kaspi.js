@@ -87,6 +87,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-kok],[data
 });
 // после сохранения: убрать из входящих и запомнить категорию для этого человека/продавца
 window.kaspiDone=function(id,tx){const k=M.kin.find(x=>x.id===id);M.kin=M.kin.filter(x=>x.id!==id);
+  if(k&&k.avail!=null){tx.kav=k.avail;tx.kt=k.time}
   if(k&&tx.lines&&tx.lines[0]){const key=norm(k.who||k.desc||"");const l=tx.lines[0];const v={c:l.c,s:l.s,n:l.n};
     if(key&&isAgg(key)){const L=(M.kmulti[key]||[]).filter(x=>!(x.c===v.c&&x.s===v.s&&x.n===v.n));L.unshift(v);M.kmulti[key]=L.slice(0,4)}
     else if(key)M.kmap[key]=v}};
