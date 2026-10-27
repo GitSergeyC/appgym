@@ -538,7 +538,9 @@ function qtyIn(u,q){if(!q||!u)return"";const v=q.v;
   if(u==="л")return q.u==="ml"?v/1000:q.u==="l"?v:q.u==="pcs"?v*0.5:""; // бутылка ≈ 0,5 л
   if(u==="шт")return q.u==="pcs"?v:"";return""}
 function parseQuick(text,commitAll){
-  let t=" "+norm(text).replace(/[,;!?]+(?=\s|$)/g," ").replace(/(\d),(\d)/g,"$1.$2")+" ";
+  // «2.700» / «12.500» из голоса — это тысячи, а не 2,7 (если дальше не кг/л/г)
+  let t=" "+norm(text).replace(/(\d{1,3})(?:[.,](\d{3}))+(?!\d|[.,]\d)(?!\s*(?:кг|г\b|гр|л\b|мл|литр|кило|грам))/g,m=>m.replace(/[.,]/g,""))
+    .replace(/[,;!?]+(?=\s|$)/g," ").replace(/(\d),(\d)/g,"$1.$2")+" ";
   if(/\sпозавчера\s/.test(t)){Fm.d=addDays(today(),-2);t=t.replace(/\sпозавчера\s/," ")}
   else if(/\sвчера\s/.test(t)){Fm.d=addDays(today(),-1);t=t.replace(/\sвчера\s/," ")}
   t=t.replace(/\sпол\s?кило[а-я]*\s/g," 0.5 кг ").replace(/\sпол\s?литр[а-я]*\s/g," 0.5 л ");
