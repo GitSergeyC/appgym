@@ -114,6 +114,7 @@ function kRef(a){let r=null;
   (M.kin||[]).forEach(k=>{if(k.avail==null||k.acc!==a.id)return;if(!r||k.time>r.time)r={time:k.time,v:k.avail,d:k.d,act:accBal(a)+(window.kaspiPending?kaspiPending(a.id,k.time):0)}});
   if(r)r.diff=Math.round(r.v-r.act);return r}
 let accEd=null;
+M.tx.forEach(t=>(t.lines||[]).forEach(l=>{if(!l.n)l.n=l.raw||l.s||"Без уточнения";if(!l.s)l.s="Без уточнения"}));
 const onAcc=()=>M.acc.reduce((v,a)=>v+accBal(a),0);
 function accBal(a,upto){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(upto!=null&&x.id>upto)return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
@@ -131,7 +132,8 @@ window.renderMoney=function(){
   if(sub==="edit"){root.innerHTML=editor();return}
   if(sub==="loan"){root.innerHTML=loanForm();return}
   const P=activeP();
-  root.innerHTML=head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P));
+  try{root.innerHTML=head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P))}
+  catch(err){root.innerHTML='<div class="card"><div class="label">Ошибка экрана</div><div class="muted">Что-то в данных сломало этот экран. Пришли скриншот — исправлю.</div><div class="muted" style="font-size:11px">'+esc(String(err&&err.stack||err).slice(0,400))+'</div><button type="button" class="chipbtn" data-sub="rep">Открыть Отчёты</button></div>'}
 };
 const rerender=()=>{save();renderMoney()};
 ["navTrain","navFood","navStats","navBase"].forEach(id=>$(id).addEventListener("click",()=>{fab.hidden=true}));
@@ -178,7 +180,7 @@ function txRow(t){
   if(t.t==="tr")return '<div class="tx" data-tx="'+t.id+'"><div class="ic" style="background:var(--surface2);color:var(--fg)">'+svg("swap")+'</div><div class="nm"><b>Перевод</b><small>'+esc(accOf(t.from).n)+" → "+esc(accOf(t.to).n)+'</small></div><div class="am">'+fmt(t.a)+"</div></div>"+tools;
   const c=catOf(t.c),ln=t.lines||[];
   const cn=t.c==="mixed"?[...new Set(ln.map(l=>catOf(l.c).n))].join(", "):"";
-  const det=(t.note?t.note+" · ":"")+(t.c==="mixed"?cn+" · "+ln.length+" поз.":ln.length>1?ln.length+" поз.: "+ln.slice(0,3).map(x=>x.n.toLowerCase()).join(", ")+(ln.length>3?"…":""):ln.length?ln[0].s+" › "+ln[0].n:"");
+  const det=(t.note?t.note+" · ":"")+(t.c==="mixed"?cn+" · "+ln.length+" поз.":ln.length>1?ln.length+" поз.: "+ln.slice(0,3).map(x=>String(x.n||x.raw||x.s||"").toLowerCase()).join(", ")+(ln.length>3?"…":""):ln.length?ln[0].s+" › "+ln[0].n:"");
   return '<div class="tx" data-tx="'+t.id+'"><div class="ic" style="background:'+c.c+'">'+svg(c.i)+'</div><div class="nm"><b>'+esc(t.receipt||c.n)+
     (t.foodLink?'<span class="link">+ в питании</span>':"")+(ln.length>1?'<span class="link">чек</span>':"")+"</b><small>"+esc(det)+"</small></div>"+
     '<div class="am '+(t.t==="inc"?"pos":"")+'">'+(t.t==="inc"?"+":"−")+fmt(t.a)+"<small>"+esc(accOf(t.acc).n)+"</small></div></div>"+
@@ -498,7 +500,7 @@ function saveSheet(){
     tx={d:Fm.d,t:"tr",from:Fm.acc,to:Fm.to,a}}
   else{const c=catOf(Fm.c);
     Fm.lines.forEach(l=>{if(!l.c){l.c="other";l.s="Прочее";l.n=l.raw||"Прочее"}});
-    let lines=Fm.lines.filter(l=>+l.a>0).map(l=>{const o={c:l.c,s:l.s,n:l.n,a:+l.a};if(l.raw)o.raw=l.raw;if(l.f)o.f=l.f;if(l.u){o.u=l.u;const q=+String(l.q).replace(",",".");if(q)o.q=q}return o});
+    let lines=Fm.lines.filter(l=>+l.a>0).map(l=>{const o={c:l.c,s:l.s||"Без уточнения",n:l.n||l.raw||l.s||"Без уточнения",a:+l.a};if(l.raw)o.raw=l.raw;if(l.f)o.f=l.f;if(l.u){o.u=l.u;const q=+String(l.q).replace(",",".");if(q)o.q=q}return o});
     let a=lines.reduce((s,l)=>s+l.a,0);
     if(!lines.length){if(Fm.lines.length){toast("Впиши суммы позиций");return}a=+Fm.a;if(!a||!Fm.c){toast("Впиши сумму");return}
       lines=[{c:Fm.c,s:Fm.s||(c.s.length===1?c.s[0].n:"Без уточнения"),n:Fm.s||c.n,a}]}
