@@ -529,6 +529,8 @@ const NUMW={"один":1,"одна":1,"одно":1,"одну":1,"два":2,"дв
 const UNIT=[[/^(г|гр|грамм[а-яa-z]*)$/,"g"],[/^(кг|кило[а-яa-z]*)$/,"kg"],[/^(мл|миллилитр[а-яa-z]*)$/,"ml"],[/^(л|литр[а-яa-z]*)$/,"l"],
   [/^(шт|штук[а-яa-z]*|штуки|пач[а-яa-z]*|палк[а-яa-z]*|бутыл[а-яa-z]*|банк[а-яa-z]*|упаков[а-яa-z]*|блок[а-яa-z]*|бутылоч[а-яa-z]*)$/,"pcs"]];
 const CUR=/^(тенге|тэнге|теңге|тг|₸|тенг)$/;
+// разговорные названия → как в категориях («картошка» → «картофель», «булка» → «булочки»)
+const QSYN={"картошка":"картофель","картошки":"картофель","картоху":"картофель","булка":"булочки","булку":"булочки","булки":"булочки","колбаску":"колбаса","минералка":"вода","минералку":"вода","газировку":"газировка","сигареты":"сигареты","яйца":"яйца"};
 const FILL=new Set(["и","за","на","по","купил","купила","взял","взяла","ещё","еще","потом","а","это","вот"]);
 const unitOf=w=>{for(const [re,u] of UNIT)if(re.test(w))return u;return null};
 function qtyIn(u,q){if(!q||!u)return"";const v=q.v;
@@ -546,8 +548,11 @@ function parseQuick(text,commitAll){
   const tok=t.trim().split(/\s+/);let words=[],q=null,added=[],lastI=-1,pendA=null;
   const close=a=>{const ws=words.filter(w=>!FILL.has(w)&&!/^\d/.test(w));let f=null;
     if(!ws.length){pendA=a;words=[];return}
-    for(let k=0;k<ws.length&&!f;k++)f=findItems(ws.slice(k).join(" "),Fm.t)[0];
-    if(!f)for(let k=ws.length;k>0&&!f;k--)f=findItems(ws.slice(0,k).join(" "),Fm.t)[0];
+    const W=ws.map(w=>QSYN[w]||Object.keys(QSYN).find(k=>k.endsWith("*")&&w.startsWith(k.slice(0,-1)))&&QSYN[Object.keys(QSYN).find(k=>k.endsWith("*")&&w.startsWith(k.slice(0,-1)))]||w);
+    // на вес (кг/г) — скорее продукт из магазина, а не блюдо из кафе
+    const pick=L=>{if(!L.length)return null;const wq=q&&/^(кг|г|л|мл)$/.test(q.u);return (wq&&L.find(x=>x.it.u&&x.c==="food"))||(Fm.t==="exp"&&L.find(x=>x.c==="food"))||L[0]};
+    for(let k=0;k<W.length&&!f;k++)f=pick(findItems(W.slice(k).join(" "),Fm.t));
+    if(!f)for(let k=W.length;k>0&&!f;k--)f=pick(findItems(W.slice(0,k).join(" "),Fm.t));
     if(f){addLine(f.c,f.s,f.it);const l=Fm.lines[Fm.lines.length-1];l.a=String(Math.round(a));const qq=qtyIn(f.it.u,q);if(qq!=="")l.q=String(qq)}
     else if(ws.length)Fm.lines.push({raw:ws.join(" "),a:String(Math.round(a)),q:""});
     if(ws.length||f)added.push(Fm.lines[Fm.lines.length-1]);words=[];q=null};
@@ -661,6 +666,13 @@ function allowPerDay(sh,all){
 }
 setTimeout(pushNotif,1500);
 {const pr=window.onAppResume;window.onAppResume=function(){try{pr&&pr()}catch(e){}pushNotif()}}
+// текст из «Поделиться» (заметка: «Колбаса 2700 / Картошка 1кг 350 …») — каждая строка как позиция
+window.onShareText=function(text){
+  showPage("money");openSheet();setType("exp");
+  const t=String(text).split(/\r?\n/).map(x=>x.trim()).filter(x=>/\d/.test(x)).join(", ");
+  if(!t){renderSheet();toast("В тексте нет сумм");return}
+  quickCommit(t,false);
+};
 window.onQuick=function(k){
   showPage("money");
   if(k==="qr"){try{Android.scanQR()}catch(e){}return}

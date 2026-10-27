@@ -195,6 +195,20 @@ public class MainActivity extends Activity {
 
     private void postNotif(String text) { QuickNotif.post(this, text); }
 
+    // «Поделиться» из других приложений: текст (заметка со списком покупок) или фото чека
+    private void handleShare(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
+        String type = intent.getType();
+        intent.setAction(null);
+        if (type != null && type.startsWith("image/")) {
+            Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) runOcr(u);
+            return;
+        }
+        String t = intent.getStringExtra(Intent.EXTRA_TEXT);
+        if (t != null && !t.trim().isEmpty()) js("window.onShareText&&onShareText(" + JSONObject.quote(t) + ")");
+    }
+
     private void handleQuick(Intent intent) {
         if (intent == null) return;
         String k = intent.getStringExtra("quick");
@@ -589,6 +603,7 @@ public class MainActivity extends Activity {
             }
         });
         handleQuick(getIntent());
+        handleShare(getIntent());
         rootView = new FrameLayout(this);
         rootView.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(rootView);
@@ -603,6 +618,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleQuick(intent);
+        handleShare(intent);
     }
 
     @Override
