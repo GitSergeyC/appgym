@@ -10,6 +10,7 @@ const R=window.MoneyAPI;
 
 // правила: подстрока/регулярка из названия в чеке → наша позиция [категория, подкатегория, позиция]
 const RULES=[
+ [/дон[еэьёо]р|doner|шаурм|шаверм|в\s*лаваш/,"cafe","Фастфуд","Донер / шаурма"],[/бургер|burger/,"cafe","Фастфуд","Бургер"],
  [/печенье|(^|[^а-яё])печ([^а-яё]|$)|печ\.?\s*шок|lovita|юбилейн|орео|oreo/,"food","Сладкое","Печенье"],[/печень/,"food","Мясо и птица","Печень"],
  [/грудк|филе\s*кур|кур.*филе/,"food","Мясо и птица","Куриная грудка"],[/бедр/,"food","Мясо и птица","Куриное бедро"],
  [/крыл/,"food","Мясо и птица","Куриные крылья"],[/тушка|цыпл|курица/,"food","Мясо и птица","Курица целая"],
@@ -87,9 +88,10 @@ window.onQR=function(text){
   if(p.i&&M.seen[p.i]){const old=M.tx.find(t=>t.id===M.seen[p.i]);
     if(old&&(old.lines||[]).length>1){wToast("Этот чек уже записан — "+short0(old.d)+", "+Math.round(old.a).toLocaleString("ru-RU")+" ₸");return}
     if(old)upd=old.id}   // записан только суммой — пробуем подтянуть позиции в ту же запись
-  if(!/oofd\.kz/i.test(text)){wToast(/halyk|kaspi\.kz\/pay|pay\.kaspi/i.test(text)?"Это QR для оплаты и чаевых, не чек. Сфотографируй чек — распознаю текст":"Это не QR чека ОФД. Сфотографируй чек — распознаю текст");return}
+  const isOfd=/(^|[\/.])[a-z0-9-]*ofd[a-z0-9-]*\.kz/i.test(text);
+  if(!isOfd){wToast(/halyk|kaspi\.kz\/pay|pay\.kaspi/i.test(text)?"Это QR для оплаты и чаевых, не чек. Сфотографируй чек — распознаю текст":"Это не QR чека ОФД. Сфотографируй чек — распознаю текст");return}
   pending={url:text,p,upd};
-  if(/oofd\.kz/i.test(text)){MoneyAPI.loading("Загружаю чек… обычно 5–10 секунд");try{Android.fetchReceipt(text)}catch(e){onReceipt(null,text)}}
+  if(isOfd){MoneyAPI.loading("Загружаю чек… обычно 5–10 секунд");try{Android.fetchReceipt(text)}catch(e){onReceipt(null,text)}}
   else onReceipt(null,text);
 };
 const short0=d=>d.slice(8)+"."+d.slice(5,7);
@@ -111,6 +113,8 @@ window.onReceipt=function(json,url,body){
       lines.push(l);
     });
   }
+  // страница другого ОФД (Webkassa / consumer.wofd.kz и др.): разбираем её текст как чек
+  if(!lines.length&&body&&body.length>40){const r=bestOcr(body);if(r.items.length){buildLines(r.items,r.rest).forEach(l=>lines.push(l));if(!seller&&r.seller)seller=r.seller}}
   const sum=lines.reduce((s,l)=>s+(+l.a||0),0),upd=pending&&pending.upd,old=upd?M.tx.find(t=>t.id===upd):null;
   const notYet=!lines.length&&/не\s*найден|не\s*существ|not\s*found|отсутств|не\s*поступ/i.test(body||"");
   if(old&&!lines.length){wToast(notYet?"ОФД всё ещё не видит этот чек — попробуй позже":"Позиции снова не загрузились");pending=null;return}
@@ -129,13 +133,24 @@ function parseOcr(text){
   const L=String(text||"").split(/\r?\n/).map(x=>fixDigits(x.trim())).filter(Boolean);
   const items=[],used=new Set();let total=0,d=null,seller="";
   const rest=L.some(x=>/гостев\S*\s*сч|официант|стол\s*[:№]|заказ\s*№/i.test(x));
-  const skip=/(ндс|итог|сдача|наличн|банк|карт|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|надбавк|скидк)/i;
+  const skip=/(ндс|итог|сдача|наличн|банк(?:ов|\s|$|:)|картой|по\s*карт|карта\s|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|надбавк|скидк)/i;
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!seller){const m=x.match(/small|magnum|galmart|анвар|арзан|metro/i);if(m)seller=sellerName(m[0])}
     if(!seller&&i<6&&/cafe|кафе|ресторан|restaurant|\bbar\b|\bбар\b|coffee|кофейн|lounge|pub|паб/i.test(x)&&!/зал\s*:/i.test(x))seller=x.replace(/[*_=~|]+/g," ").replace(/^\W*\S{1,2}\s+(?=[A-ZА-Я])/,"").replace(/\s+/g," ").trim().slice(0,30);
     if(!d){let m=x.match(/(\d{2})[.\/-](\d{2})[.\/-](20\d{2})/);if(m&&okDate(m[3]+"-"+m[2]+"-"+m[1]))d=m[3]+"-"+m[2]+"-"+m[1];else{m=x.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m&&okDate(m[1]+"-"+m[2]+"-"+m[3]))d=m[1]+"-"+m[2]+"-"+m[3]}}
     if((/итог|к\s*оплат|k\s*onnat|оплате|безналичн/i.test(x))&&!/промежут/i.test(x)&&!total){const m=x.match(NUM)||(L[i+1]||"").match(NUM);
       if(m)total=num(m[0]);else{const z=normAmt(x).match(/(\d+(?:\.\d{1,2})?)\s*\W*$/);if(z&&/[.,]|\d{3}/.test(z[1]))total=parseFloat(z[1])}}
+    // Webkassa (донерные, кафе): «1. Донер в лаваше» / «1 дана/шт x 2 700,00» / «Құны/Стоимость 2 700,00»
+    const wk=x.match(/^\W*(\d{1,3}(?:[.,]\d+)?)\s+\S{3,6}\s*\/\s*\S{1,3}\s*[xх×*]\s*(.+)$/i);
+    if(wk&&!/=/.test(x)){const qty=num(wk[1]),pz=amtIn(wk[2]),price=pz||0;let tot=null,seen=false;
+      for(let k=i;k<=i+2&&k<L.length;k++){if(!/стоим|с.оимост|куны|құны|сумма/i.test(L[k]))continue;seen=true;
+        const z=amtIn(L[k].replace(/^.*?(стоим\S*|с.оим\S*|куны\S*|құны\S*|сумма)/i,""),true);if(z&&z>=1)tot=z;used.add(k);break}
+      if(tot==null&&!seen&&price>=1)tot=Math.round(price*qty*100)/100;
+      let name="";for(let k=i-1;k>=0&&k>=i-3;k--){const y=L[k];if(used.has(k)||/^\W*ntin|стоим|куны/i.test(y))continue;
+        name=y+" "+name;if(/^\W*\d{1,2}[.,]\s/.test(y))break}
+      name=name.replace(/^\W*\d{1,2}[.,]\s*-?\s*/,"").replace(/\s+/g," ").trim();
+      if(tot&&tot>=1&&tot<5e6&&name.replace(/[^a-zа-я]/gi,"").length>=3){used.add(i);items.push({name,qty,price:tot/(qty||1),total:tot})}
+      continue}
     // M-Mart и др.: «ntin 0200186015410   720.00*1=720.00» (цена*кол-во=сумма; «*» часто читается как % или #)
     const m2=normAmt(x.replace(/(\d)\s+([.,])/g,"$1$2")).match(/(\d+\.\d{2})\s*[*%#xхХ×]\s*(\d+(?:\.\d+)?)\s*=\s*(\d+(?:\.\d{1,2})?)/);
     if(m2){const price=+m2[1],qty=+m2[2];let tot=+m2[3];if(Math.abs(price*qty-tot)>1&&Math.abs(price*qty-tot/100)<1)tot=tot/100;
@@ -174,11 +189,17 @@ function parseOcr(text){
 // дата из чека: настоящая, не в будущем и не старше 3 месяцев — иначе это ошибка распознавания
 function okDate(k){const [y,m,d]=k.split("-").map(Number),t=new Date(y,m-1,d);if(t.getMonth()!==m-1||t.getDate()!==d)return false;
   const now=Date.now();return t.getTime()<=now+864e5&&t.getTime()>now-92*864e5}
+// сумма в строке: «2 700,00» → 2700; strict — только с копейками (иначе это мусор распознавания)
+function amtIn(x,strict){const y=normAmt(x).replace(/(\d)\s+(?=\d{3}(?!\d))/g,"$1");const all=[...y.matchAll(/(\d+)(\.\d{1,2})?/g)].filter(m=>!strict||m[2]);
+  const m=all[all.length-1];return m?parseFloat(m[1]+(m[2]||"")):0}
 function normAmt(x){return x.replace(/(\d)\s*[.,]\s*(\d{1,2})(?!\d)/g,"$1.$2").replace(/(\d{3})\s(\d{2})(?!\d)\s*\W*$/,"$1.$2")}
 // Java присылает текст двух режимов распознавания через «=====» — берём тот, что лучше разобрался
 function bestOcr(text){
   const parts=String(text||"").split(/\n=====\n/).filter(x=>x.trim());let best=null,bs=-1;
-  const all=parts.map(parseOcr);all.forEach(r=>{r.items=r.items.filter(i=>i.total<5e6&&(!r.total||i.total<=r.total*1.01))});
+  const all=parts.map(parseOcr);all.forEach(r=>{r.items=r.items.filter(i=>i.total<5e6&&(!r.total||i.total<=r.total*1.01));
+    // мусорные мелкие позиции (0,00 прочитано как 9,00) — убираем, если без них сумма сходится с итогом
+    if(r.total&&r.items.length>1){const sm=r.items.reduce((s,i)=>s+i.total,0),keep=r.items.filter(i=>i.total>=Math.max(50,r.total*0.02));
+      if(Math.abs(sm-r.total)>1&&keep.length&&Math.abs(keep.reduce((s,i)=>s+i.total,0)-r.total)<=1)r.items=keep}});
   all.forEach(r=>{const sum=r.items.reduce((s,i)=>s+i.total,0);const sc=r.items.length*10+(r.total&&Math.abs(r.total-sum)<=1?100:0)+(r.total?5:0);if(sc>bs){bs=sc;best=r}});
   if(best){
     // «голосование» проходов: сумма, которая чаще встречается, вернее (350 против ошибочных 850 и 35000)
@@ -190,10 +211,13 @@ function bestOcr(text){
     const sig=r=>r.items.map(i=>Math.round(i.total)).join(",");
     const same=all.filter(r=>r!==best&&sig(r)===sig(best));
     if(same.length)best.items.forEach((it,k)=>{const cand=[it.name].concat(same.map(r=>r.items[k].name));
-      const q=n=>(match(n)?100:0)+n.replace(/[^a-zа-яё]/gi,"").length-(n.match(/\b[A-ZА-ЯЁ]{1,2}\b/g)||[]).length*3;
+      const q=n=>(match(n)?100:0)+n.replace(/[^a-zа-яё]/gi,"").length-(n.match(/\b[A-ZА-ЯЁ]{1,2}\b/g)||[]).length*3-(n.match(/[!?@}{|\\$%^]/g)||[]).length*8-(/[a-z]/i.test(n)&&/[а-яё]/i.test(n)?0:0);
       it.name=cand.sort((a,b)=>q(b)-q(a))[0]});
     best.items.forEach(it=>{const c=[it.total,it.total/10,it.total/100].filter(v=>!best.total||v<=best.total*1.01);
       const pick=c.sort((a,b)=>fr(b)-fr(a))[0];if(pick&&fr(pick)>fr(it.total)){it.total=pick;it.price=pick/(it.qty||1)}});
+    {const sm=()=>best.items.reduce((s,i)=>s+i.total,0);
+      if(best.total&&best.items.length>1&&Math.abs(sm()-best.total)>1){const keep=best.items.filter(i=>i.total>=Math.max(50,best.total*0.02));
+        if(keep.length&&Math.abs(keep.reduce((s,i)=>s+i.total,0)-best.total)<=1)best.items=keep}}
     if(best.items.length===1&&best.total&&Math.abs(best.items[0].total-best.total)>1){const it=best.items[0];
       if(fr(best.total)>=fr(it.total)){it.total=best.total;it.price=best.total/(it.qty||1)}else best.total=it.total}
     {const dv={};all.forEach(r=>{if(r.d)dv[r.d]=(dv[r.d]||0)+1});const ds=Object.keys(dv).sort((a,b)=>dv[b]-dv[a]);if(ds.length)best.d=ds[0]}

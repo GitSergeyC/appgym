@@ -226,6 +226,7 @@ public class MainActivity extends Activity {
         "if(h){var ps=document.querySelectorAll('p');for(var k=0;k<ps.length;k++){if(h.compareDocumentPosition(ps[k])&4){var f=ps[k].firstChild;seller=((f&&f.textContent)||ps[k].textContent||'').trim();break;}}}" +
         "return JSON.stringify({items:items,header:ht,seller:seller});}catch(e){return null}})()";
 
+    private static final String BODY_IF_TOTAL = "(function(){try{var t=(document.body.innerText||'');return t.length>120&&/итог|стоимость|барлы/i.test(t)?t.slice(0,4000):''}catch(e){return ''}})()";
     private static final String BODY = "(function(){try{return (document.body.innerText||'').slice(0,4000)}catch(e){return ''}})()";
 
     private final java.util.ArrayList<String> pendingJs = new java.util.ArrayList<>();
@@ -469,6 +470,17 @@ public class MainActivity extends Activity {
                                 js("window.onReceipt&&onReceipt(" + v + "," + JSONObject.quote(url) + ")");
                                 rootView.removeView(w);
                                 w.destroy();
+                            } else if (tries[0] >= 6 && tries[0] < 25) {
+                                // не oofd-вёрстка (Webkassa и др.): если на странице уже есть итог — отдаём её текст, не ждём
+                                w.evaluateJavascript(BODY_IF_TOTAL, body -> {
+                                    if (done[0]) return;
+                                    if (body != null && body.length() > 10) {
+                                        done[0] = true;
+                                        js("window.onReceipt&&onReceipt(null," + JSONObject.quote(url) + "," + body + ")");
+                                        rootView.removeView(w);
+                                        w.destroy();
+                                    } else h.postDelayed(this, 1000);
+                                });
                             } else if (tries[0] >= 25) {
                                 done[0] = true;
                                 // позиций нет — отдаём текст страницы: по нему видно «чек не найден» и т.п.
