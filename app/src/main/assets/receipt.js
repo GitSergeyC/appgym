@@ -72,7 +72,8 @@ function qtyFor(raw,qty,u){
   if(size){let v=+size[1];const un=size[2];
     if(un==="г"||un==="гр"||un==="мл")v=v/1000;
     if((u==="кг"&&(un==="кг"||un==="г"||un==="гр"))||(u==="л"&&(un==="л"||un==="мл")))return Math.round(qty*v*1000)/1000}
-  return qty; // весовой товар: количество уже в кг
+  // дробное количество — это вес с весов (кг); целое без веса в названии («1», «6 шт») — вес неизвестен, цену за кг не считаем
+  return Number.isInteger(+qty)?"":qty;
 }
 function sellerName(s){const t=norm(s);
   if(/small|скиф/.test(t))return"Small";if(/magnum|магнум/.test(t))return"Магнум";if(/galmart/.test(t))return"Galmart";
@@ -134,7 +135,7 @@ function parseOcr(text){
   const L=String(text||"").split(/\r?\n/).map(x=>fixDigits(x.trim())).filter(Boolean);
   const items=[],used=new Set();let total=0,d=null,seller="";
   const rest=L.some(x=>/гостев\S*\s*сч|официант|стол\s*[:№]|заказ\s*№/i.test(x));
-  const skip=/(ндс|итог|сдача|наличн|банк(?:ов|\s|$|:)|картой|по\s*карт|карта\s|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|надбавк|скидк)/i;
+  const skip=/(ндс|итог|сдача|наличн|банк(?:ов|\s|$|:)|картой|по\s*карт|карта\s|оплат|фискальн|кассир|касса|смена|знм|рнм|бин|иин|продажа|чек|спасибо|сайт|oofd|ofd|налог|промежут|подытог|надбавк|скидк)/i;
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!seller){const m=x.match(/small|magnum|galmart|анвар|арзан|metro/i);if(m)seller=sellerName(m[0])}
     if(!seller&&i<6&&/cafe|кафе|ресторан|restaurant|\bbar\b|(?<![а-яё])бар(?![а-яё])|coffee|кофейн|lounge|pub|паб/i.test(x)&&!/зал\s*:/i.test(x))seller=x.replace(/[*_=~|]+/g," ").replace(/^\W*\S{1,2}\s+(?=[A-ZА-Я])/,"").replace(/\s+/g," ").trim().slice(0,30);

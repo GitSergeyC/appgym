@@ -115,6 +115,16 @@ function kRef(a){let r=null;
   if(r)r.diff=Math.round(r.v-r.act);return r}
 let accEd=null;
 M.tx.forEach(t=>(t.lines||[]).forEach(l=>{if(!l.n)l.n=l.raw||l.s||"Без уточнения";if(!l.s)l.s="Без уточнения"}));
+// разовые исправления данных после проверки 29.10 (см. переписку): кДж в дневнике, пакет в «Прочем», ложные цены за кг
+if(!M.fx1){M.fx1=1;
+  for(const k in S.food)(S.food[k]||[]).forEach(e=>{if(e.k>900&&e.k/4.184<=900)e.k=Math.round(e.k/4.184*10)/10});
+  M.tx.forEach(t=>(t.lines||[]).forEach(l=>{if(l.c==="other"&&/n[aа][xхk][eе]t|пакет/i.test(l.raw||"")){l.c="home";l.s="Товары для дома";l.n="Мелочи"}}));
+  Object.keys(M.rmap||{}).forEach(k=>{if(/^подытог/.test(k))delete M.rmap[k]});
+  // чек-список 28.10 (5 500 ₸): веса не было, «1 кг печенья», «6 л воды», «1 л кефира» — убираем эти цены
+  const t26=M.tx.find(t=>t.a===5500&&t.d==="2026-10-28");
+  if(t26){(t26.lines||[]).forEach(l=>{delete l.q});
+    S.base.forEach(b=>{if(!b.ph||!b.ph.some(h=>h.t===t26.id))return;b.ph=b.ph.filter(h=>h.t!==t26.id);const l=b.ph[b.ph.length-1];if(l){b.pkg=l.p;b.pd=l.d}else{delete b.pkg;delete b.pd}})}
+  save()}
 const onAcc=()=>M.acc.reduce((v,a)=>v+accBal(a),0);
 function accBal(a,upto){let v=+a.start||0;M.tx.forEach(x=>{if(a.sd&&(x.d<a.sd||x.id<=a.sid))return;if(upto!=null&&x.id>upto)return;if(x.acc===a.id){if(x.t==="exp")v-=x.a;if(x.t==="inc")v+=x.a}if(x.t==="tr"){if(x.from===a.id)v-=x.a;if(x.to===a.id)v+=x.a}});return v}
 
