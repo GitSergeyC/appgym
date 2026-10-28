@@ -290,6 +290,7 @@ function editor(){
    '<div class="card"><div class="label">Счета</div><div class="muted">Впиши, сколько на счёте сейчас. Записи до этого момента на остаток уже не влияют — старые траты можно спокойно дописывать.</div>'+
    M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Сейчас, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+Math.round(accBal(a))+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
    '<button type="button" class="chipbtn" data-aadd="1">+ Счёт</button></div>'+
+   (window.Android&&Android.shareFile?'<div class="card"><div class="label">Проверка данных</div><div class="muted">Соберёт все записи, продукты, категории и питание в один файл. Его можно отправить в чат на проверку — в телефоне ничего не меняется.</div><button type="button" class="chipbtn" data-x3="export">Отправить данные файлом</button></div>':"")+
    '<button type="button" class="bigbtn ghost" data-x3="cated">Категории и подкатегории — в Базе</button>'+
    (window.Android&&Android.version?'<div class="muted" style="text-align:center">Версия приложения '+esc(Android.version())+"</div>":"");
   return h;
@@ -300,6 +301,7 @@ function armOr(key){if(edArm===key){edArm=null;return true}edArm=key;setTimeout(
 root.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;const d=b.dataset;
   if(d.x3==="perm"){try{Android.openMusicPermission()}catch(err){}return}
+  if(d.x3==="export"){try{const k=today();Android.shareFile("zal-"+k+".json",JSON.stringify({app:"zal",ver:window.Android&&Android.version?Android.version():"",at:new Date().toISOString(),data:S}))}catch(err){toast("Не получилось")}return}
   if(d.x3==="cated"){if(window.openCatEditor)openCatEditor("exp");return}
   if(d.x2==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}return}
   if(d.x2==="photo"){openSheet();Fm.photoAsk=true;renderSheet();return}

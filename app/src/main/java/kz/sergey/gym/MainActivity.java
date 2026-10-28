@@ -507,6 +507,23 @@ public class MainActivity extends Activity {
             });
         }
 
+        // выгрузка данных одним файлом — чтобы отправить на проверку (в чат, мессенджер, почту)
+        @JavascriptInterface
+        public void shareFile(final String name, final String content) {
+            runOnUiThread(() -> {
+                try {
+                    File f = new File(getCacheDir(), name);
+                    try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(content.getBytes("UTF-8")); }
+                    Uri u = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    Intent i = new Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, u)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, "Отправить данные"));
+                } catch (Exception e) {
+                    js("window.wToast&&wToast('Не получилось сохранить файл')");
+                }
+            });
+        }
+
         @JavascriptInterface
         public void openUrl(final String url) {
             runOnUiThread(() -> {
