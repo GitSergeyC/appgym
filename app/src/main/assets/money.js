@@ -710,6 +710,15 @@ window.MoneyAPI={openPrefilled(o){openSheet();setType(o.t);
     if(!o.lines.length&&o.total)Fm.a=String(Math.round(o.total));
     const un=o.lines.findIndex(l=>!l.c);Fm.assign=un>=0?un:null;if(o.lines[0]&&o.lines[0].c)Fm.c=o.lines[0].c;renderSheet()}};
 window.addEventListener("DOMContentLoaded",()=>{if(!$("pageMoney").hidden)renderMoney()});
+// кнопка «Назад» телефона: сначала закрываем открытое внутри «Денег»
+MoneyAPI.back=function(){
+  if(!sheet.hidden){closeSheet();return true}
+  if(ppOpen){ppOpen=false;renderMoney();return true}
+  if(sub==="edit"||sub==="loan"){sub="rep";renderMoney();return true}
+  if(sub==="where"&&(Wv.item||Wv.fc||Wv.fs||Wv.q)){Wv.item=null;if(Wv.fs)Wv.fs=null;else Wv.fc=null;Wv.q="";renderMoney();return true}
+  if(sub!=="rec"){sub="rec";renderMoney();return true}
+  if(openTx!=null){openTx=null;renderMoney();return true}
+  return false};
 sheet.addEventListener("click",e=>{const b=e.target.closest("[data-sug]");if(!b||!Fm.sug)return;e.stopPropagation();
   const g=Fm.sug[+b.dataset.sug],amt=(Fm.lines[0]&&Fm.lines[0].a)||Fm.a;Fm.c=g.c;Fm.s=g.s||null;
   if(g.n){Fm.lines=[{c:g.c,s:g.s,n:g.n,a:String(amt)}];Fm.a=""}else{Fm.lines=[];Fm.a=String(amt)}renderSheet()},true);

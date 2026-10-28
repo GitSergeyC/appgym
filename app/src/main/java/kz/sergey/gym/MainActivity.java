@@ -652,6 +652,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
 
+    // «Назад»: сначала приложение закрывает своё открытое окно / возвращает на прошлую вкладку
+    @Override
+    public void onBackPressed() {
+        if (web == null || !pageReady) { super.onBackPressed(); return; }
+        web.evaluateJavascript("(function(){try{return !!(window.onBack&&onBack())}catch(e){return false}})()", v -> {
+            if (!"true".equals(v)) super.onBackPressed();
+        });
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
