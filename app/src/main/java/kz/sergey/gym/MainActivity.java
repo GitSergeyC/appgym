@@ -204,11 +204,29 @@ public class MainActivity extends Activity {
 
     private void postNotif(String text) { QuickNotif.post(this, text); }
 
-    // «Поделиться» из других приложений: текст (заметка со списком покупок) или фото чека
+    // файл с данными «Зала» (выгрузка) → в JS для восстановления
+    private void sendFileText(final Uri u) {
+        new Thread(() -> {
+            String t = null;
+            try (InputStream in = getContentResolver().openInputStream(u)) {
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[65536]; int n;
+                while ((n = in.read(buf)) > 0) { bo.write(buf, 0, n); if (bo.size() > 20_000_000) break; }
+                t = bo.toString("UTF-8");
+            } catch (Exception ignored) { }
+            js("window.onImportFile&&onImportFile(" + (t == null ? "null" : JSONObject.quote(t)) + ")");
+        }).start();
+    }
+
+    // «Поделиться» из других приложений: текст (заметка со списком покупок), фото чека или файл выгрузки
     private void handleShare(Intent intent) {
         if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
         String type = intent.getType();
         intent.setAction(null);
+        if (type != null && (type.contains("json") || type.equals("application/octet-stream") || type.equals("text/x-json"))) {
+            Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) { sendFileText(u); return; }
+        }
         if (type != null && type.startsWith("image/")) {
             Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
             if (u != null) runOcr(u);
@@ -525,6 +543,16 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void pickFile() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(Intent.createChooser(i, "Файл с данными Зала"), 93);
+                } catch (Exception e) { js("window.wToast&&wToast('Не открылся выбор файла')"); }
+            });
+        }
+
+        @JavascriptInterface
         public void openUrl(final String url) {
             runOnUiThread(() -> {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
@@ -684,6 +712,7 @@ public class MainActivity extends Activity {
         }
         if (req == 91 && res == RESULT_OK && camUri != null) runOcr(camUri);
         else if (req == 92 && res == RESULT_OK && data != null && data.getData() != null) runOcr(data.getData());
+        else if (req == 93 && res == RESULT_OK && data != null && data.getData() != null) sendFileText(data.getData());
         else if (req == 91 || req == 92) js("window.onPhotoCancel&&onPhotoCancel(" + (res == RESULT_OK) + ")");
         if (req == 88 && res == RESULT_OK && data != null) {
             ArrayList<String> r = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);

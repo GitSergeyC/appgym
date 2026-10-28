@@ -179,7 +179,7 @@ function records(P){
   const days=Object.keys(by).sort().reverse();
   const qrBtn=hasQR()||hasPhoto()?'<div class="wrow">'+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Чек по QR</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-x2="photo">'+svg("camera")+"Фото чека</button>":"")+"</div>":"";
   const dueB=(window.kaspiCard?kaspiCard():"")+dueBanner();
-  if(!days.length)return dueB+qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>';
+  if(!days.length)return dueB+qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>'+(window.Android&&Android.pickFile?'<button type="button" class="bigbtn ghost" data-rs="pick">Восстановить из файла</button>':"");
   return dueB+qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
     return '<div class="daycard"><div class="dayh"><b>'+short(d)+' <span style="font-weight:400">'+wday(d)+"</span></b><span>"+(e?"−"+fmt(e):"")+(e&&i?" · ":"")+(i?'<span class="pos">+'+fmt(i)+"</span>":"")+"</span></div>"+
       by[d].slice().reverse().map(txRow).join("")+"</div>"}).join("");
@@ -300,7 +300,7 @@ function editor(){
    '<div class="card"><div class="label">Счета</div><div class="muted">Впиши, сколько на счёте сейчас. Записи до этого момента на остаток уже не влияют — старые траты можно спокойно дописывать.</div>'+
    M.acc.map((a,i)=>'<div class="fgrid" style="grid-template-columns:1fr 120px 36px;align-items:end"><label>Название<input class="inp" data-an="'+i+'" value="'+esc(a.n)+'"></label><label>Сейчас, ₸<input class="inp" data-as="'+i+'" inputmode="numeric" value="'+Math.round(accBal(a))+'"></label><button type="button" class="xbtn" data-adel="'+i+'" aria-label="Удалить счёт">'+(edArm==="a"+i?"?":"×")+"</button></div>").join("")+
    '<button type="button" class="chipbtn" data-aadd="1">+ Счёт</button></div>'+
-   (window.Android&&Android.shareFile?'<div class="card"><div class="label">Проверка данных</div><div class="muted">Соберёт все записи, продукты, категории и питание в один файл. Его можно отправить в чат на проверку — в телефоне ничего не меняется.</div><button type="button" class="chipbtn" data-x3="export">Отправить данные файлом</button></div>':"")+
+   (window.Android&&Android.shareFile?'<div class="card"><div class="label">Проверка данных</div><div class="muted">Соберёт все записи, продукты, категории и питание в один файл. Его можно отправить в чат на проверку или сохранить как копию: если удалишь приложение, из этого файла всё вернётся.</div><button type="button" class="chipbtn" data-x3="export">Отправить данные файлом</button><button type="button" class="chipbtn" data-rs="pick">Восстановить из файла</button></div>':"")+
    '<button type="button" class="bigbtn ghost" data-x3="cated">Категории и подкатегории — в Базе</button>'+
    (window.Android&&Android.version?'<div class="muted" style="text-align:center">Версия приложения '+esc(Android.version())+"</div>":"");
   return h;
