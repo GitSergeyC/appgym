@@ -3,6 +3,8 @@
 window.MCAT=(function(){
 // ---------- иконки (линейные, 24×24) ----------
 const P={
+ plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
  basket:'<path d="M5 10h14l-1.5 9h-11z"/><path d="M9 10l3-6 3 6"/>',
  fork:'<path d="M7 3v8a2 2 0 0 0 2 2v8M11 3v8M7 7h4M16 3c-1.5 2-2 4-2 7h3v11"/>',
  home:'<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-6h4v6"/>',

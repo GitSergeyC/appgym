@@ -138,11 +138,12 @@ document.body.appendChild(fab);fab.hidden=true;fab.onclick=()=>openSheet();
 
 window.renderMoney=function(){
   if(!cust&&(per==null||!periodOf(per)))per=curPer();
-  fab.hidden=$("pageMoney").hidden||sub==="edit"||sub==="loan";
+  const simple=M.ui!=="old";
+  fab.hidden=simple||$("pageMoney").hidden||sub==="edit"||sub==="loan";
   if(sub==="edit"){root.innerHTML=editor();return}
   if(sub==="loan"){root.innerHTML=loanForm();return}
   const P=activeP();
-  try{root.innerHTML=head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P))}
+  try{root.innerHTML=simple?(sub==="where"?head(P)+where(P):sHead(P)+(sub==="rec"?records(P,true):sAnalysis(P))+sOverlay()):head(P)+(sub==="rec"?records(P):sub==="where"?where(P):reports(P))}
   catch(err){root.innerHTML='<div class="card"><div class="label">Ошибка экрана</div><div class="muted">Что-то в данных сломало этот экран. Пришли скриншот — исправлю.</div><div class="muted" style="font-size:11px">'+esc(String(err&&err.stack||err).slice(0,400))+'</div><button type="button" class="chipbtn" data-sub="rep">Открыть Отчёты</button></div>'}
 };
 const rerender=()=>{save();renderMoney()};
@@ -174,16 +175,22 @@ function head(P){
 }
 
 // ---------- записи ----------
-function records(P){
+function records(P,simple){
   const by={};M.tx.forEach(t=>{if(inPer(t,P))(by[t.d]=by[t.d]||[]).push(t)});
   const days=Object.keys(by).sort().reverse();
-  const qrBtn=hasQR()||hasPhoto()?'<div class="wrow">'+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Чек по QR</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-x2="photo">'+svg("camera")+"Фото чека</button>":"")+"</div>":"";
+  const qrBtn=simple?"":hasQR()||hasPhoto()?'<div class="wrow">'+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x2="qr">'+svg("qr")+"Чек по QR</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-x2="photo">'+svg("camera")+"Фото чека</button>":"")+"</div>":"";
   const dueB=(window.kaspiCard?kaspiCard():"")+dueBanner();
   if(!days.length)return dueB+qrBtn+'<div class="empty">Записей пока нет.<br>Нажми «+», чтобы добавить расход, доход или перевод. Начни с зарплаты: с неё начинается учётный месяц.</div>'+(window.Android&&Android.pickFile?'<button type="button" class="bigbtn ghost" data-rs="pick">Восстановить из файла</button>':"");
   return dueB+qrBtn+days.map(d=>{let e=0,i=0;by[d].forEach(t=>{if(t.t==="exp")e+=t.a;if(t.t==="inc")i+=t.a});
-    return '<div class="daycard"><div class="dayh"><b>'+short(d)+' <span style="font-weight:400">'+wday(d)+"</span></b><span>"+(e?"−"+fmt(e):"")+(e&&i?" · ":"")+(i?'<span class="pos">+'+fmt(i)+"</span>":"")+"</span></div>"+
+    return '<div class="daycard"><div class="dayh"><b>'+(simple&&d===today()?"Сегодня":simple&&d===addDays(today(),-1)?"Вчера":short(d))+' <span style="font-weight:400">'+wday(d)+"</span></b><span>"+(e?"−"+fmt(e):"")+(e&&i?" · ":"")+(i?'<span class="pos">+'+fmt(i)+"</span>":"")+"</span></div>"+
       by[d].slice().reverse().map(txRow).join("")+"</div>"}).join("");
 }
+function txTitle(t){const ln=t.lines||[];if(t.receipt)return t.receipt;
+  const names=[...new Set(ln.map(l=>l.n).filter(Boolean))];
+  const base=names.length>2?names.slice(0,2).join(", ")+" и ещё "+(names.length-2):names.join(", ");
+  if(t.kaspi&&t.t==="exp"&&base)return base;
+  if(t.kaspi&&t.t==="inc"&&t.note)return t.note;
+  return t.note&&!/^[A-ZА-Я][a-zа-я]+ [A-ZА-Я]\.$/.test(t.note)?t.note+(base&&ln.length===1?" · "+base:""):(t.note?t.note+" · ":"")+(base||catOf(t.c).n)}
 function txRow(t){
   const isOpen=openTx===t.id;
   const tools=isOpen?'<div class="txtools"><button type="button" data-edit="'+t.id+'">Изменить</button><button type="button" class="danger" data-del="'+t.id+'">'+(delArm===t.id?"Точно удалить?":"Удалить")+"</button></div>":"";
@@ -191,8 +198,9 @@ function txRow(t){
   const c=catOf(t.c),ln=t.lines||[];
   const cn=t.c==="mixed"?[...new Set(ln.map(l=>catOf(l.c).n))].join(", "):"";
   const det=(t.note?t.note+" · ":"")+(t.c==="mixed"?cn+" · "+ln.length+" поз.":ln.length>1?ln.length+" поз.: "+ln.slice(0,3).map(x=>String(x.n||x.raw||x.s||"").toLowerCase()).join(", ")+(ln.length>3?"…":""):ln.length?ln[0].s+" › "+ln[0].n:"");
-  return '<div class="tx" data-tx="'+t.id+'"><div class="ic" style="background:'+c.c+'">'+svg(c.i)+'</div><div class="nm"><b>'+esc(t.receipt||c.n)+
-    (t.foodLink?'<span class="link">+ в питании</span>':"")+(ln.length>1?'<span class="link">чек</span>':"")+"</b><small>"+esc(det)+"</small></div>"+
+  const simple=M.ui!=="old";
+  return '<div class="tx" data-tx="'+t.id+'"><div class="ic" style="background:'+c.c+'">'+svg(c.i)+'</div><div class="nm"><b>'+esc(simple?txTitle(t):t.receipt||c.n)+
+    (t.foodLink?'<span class="link">+ в питании</span>':"")+(ln.length>1?'<span class="link">чек</span>':"")+"</b><small>"+esc(simple?(t.c==="mixed"?cn:c.n+(ln[0]&&ln[0].s&&ln[0].s!==c.n?" › "+ln[0].s:"")):det)+"</small></div>"+
     '<div class="am '+(t.t==="inc"?"pos":"")+'">'+(t.t==="inc"?"+":"−")+fmt(t.a)+"<small>"+esc(accOf(t.acc).n)+"</small></div></div>"+
     (isOpen&&ln.length?'<div class="txlines">'+ln.map(x=>"<div><span>"+(t.c==="mixed"?esc(catOf(x.c).n)+" › ":"")+esc(x.n)+(x.q?" · "+String(x.q).replace(".",",")+" "+(x.u||""):"")+"</span><b>"+fmt(x.a)+"</b></div>").join("")+"</div>":"")+tools;
 }
@@ -256,14 +264,15 @@ function reports(P){
    '<div class="kv"><span>Кафе, донеры, кофе, доставка</span><b>'+fmt(sum(l=>l.c==="cafe"))+'</b></div>'+
    '<div class="kv"><span>Алкоголь и закуски</span><b>'+fmt(sum(l=>l.s==="Алкоголь"||l.s==="Снеки и закуски"))+'</b></div>'+
    '<div class="kv"><span>Сигареты</span><b>'+fmt(sum(l=>l.s==="Сигареты"))+'</b></div></div>'+
-   '<div class="card"><div class="label">Счета</div><div class="muted">Нажми на счёт, чтобы вписать, сколько на нём сейчас.</div>'+M.acc.map(a=>{const r=kRef(a);
-     return '<div class="accrow" data-acced="'+a.id+'" style="cursor:pointer"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(r?'<small class="muted" style="display:block">по Kaspi '+short(r.d)+": "+fmt(r.v)+" ₸"+(Math.abs(r.diff)>10?' · <span class="neg">расхождение '+(r.diff>0?"+":"−")+fmt(Math.abs(r.diff))+'</span><br><button type="button" class="chipbtn" data-kfix="'+a.id+'" style="margin-top:6px">Поставить как в Kaspi</button>':" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"+
-       (accEd===a.id?'<div class="addrow"><input class="inp" id="accNow" inputmode="numeric" placeholder="Сейчас на счёте, ₸" value="'+Math.round(accBal(a))+'"><button type="button" class="chipbtn" data-accsave="'+a.id+'">Сохранить</button></div><div class="muted">Всё, что записано до этой минуты, на остаток больше не влияет.</div>':"")}).join("")+
-   (M.acc.some(a=>{const r=kRef(a);return r&&Math.abs(r.diff)>10})?'<div class="muted">Расхождение — какая-то операция не записана или записана не на тот счёт. Найди её, нажми «Поставить как в Kaspi» или нажми на счёт и впиши остаток сам.</div>':"")+"</div>"+
+   accCard()+
    loansCard()+'<button type="button" class="bigbtn ghost" data-sub="edit">Категории, счета и настройки</button>';
   return h;
 }
 
+function accCard(){return '<div class="card"><div class="label">Счета</div><div class="muted">Нажми на счёт, чтобы вписать, сколько на нём сейчас.</div>'+M.acc.map(a=>{const r=kRef(a);
+     return '<div class="accrow" data-acced="'+a.id+'" style="cursor:pointer"><div class="ic" style="background:'+a.c+'">'+svg(a.i)+"</div><span>"+esc(a.n)+(r?'<small class="muted" style="display:block">по Kaspi '+short(r.d)+": "+fmt(r.v)+" ₸"+(Math.abs(r.diff)>10?' · <span class="neg">расхождение '+(r.diff>0?"+":"−")+fmt(Math.abs(r.diff))+'</span><br><button type="button" class="chipbtn" data-kfix="'+a.id+'" style="margin-top:6px">Поставить как в Kaspi</button>':" · сходится")+"</small>":"")+"</span><b>"+fmt(accBal(a))+" ₸</b></div>"+
+       (accEd===a.id?'<div class="addrow"><input class="inp" id="accNow" inputmode="numeric" placeholder="Сейчас на счёте, ₸" value="'+Math.round(accBal(a))+'"><button type="button" class="chipbtn" data-accsave="'+a.id+'">Сохранить</button></div><div class="muted">Всё, что записано до этой минуты, на остаток больше не влияет.</div>':"")}).join("")+
+   (M.acc.some(a=>{const r=kRef(a);return r&&Math.abs(r.diff)>10})?'<div class="muted">Расхождение — какая-то операция не записана или записана не на тот счёт. Найди её, нажми «Поставить как в Kaspi» или нажми на счёт и впиши остаток сам.</div>':"")+"</div>"}
 // ---------- доходы: по категориям и чаевые за смену ----------
 function incomeCard(P,pp){
   const L=expLines(P,"inc");if(!L.length)return '<div class="card"><div class="label">Доходы</div><div class="muted">В этом периоде доходов пока нет.</div></div>';
@@ -290,6 +299,7 @@ const PALETTE=["#6cd39a","#5ec4b6","#e88fb0","#c9a27e","#7fb2f0","#f08a7e","#9ad
 function editor(){
   const cats=M.cats[edT];
   let h='<div class="edhead"><button type="button" class="chipbtn" data-sub="rep">‹ Назад</button><b>Настройки денег</b></div>'+
+   '<div class="card"><div class="label">Вид экрана</div><div class="muted">Простой — одна главная цифра, добавление в два шага. Прежний — как было раньше. Данные общие.</div><div class="seg"><button type="button" data-ui="simple" aria-pressed="'+(M.ui!=="old")+'">Простой</button><button type="button" data-ui="old" aria-pressed="'+(M.ui==="old")+'">Прежний</button></div></div>'+
    '<div class="card"><div class="label">Учётный месяц</div><div class="muted">Период начинается в день, когда записана зарплата (кроме аванса). Окно зарплаты нужно для подсказки «до зарплаты N дней».</div>'+
    '<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr"><label>Зарплата с<input class="inp" id="salF" inputmode="numeric" value="'+M.sal.from+'"></label><label>по число<input class="inp" id="salT" inputmode="numeric" value="'+M.sal.to+'"></label><label>Бюджет, ₸<input class="inp" id="bud" inputmode="numeric" placeholder="нет" value="'+(M.budget||"")+'"></label></div></div>'+
    '<div class="card"><div class="label">Рабочий день</div><div class="muted">До этого часа ночи записи идут во вчерашний день: чаевые после полуночи, поздний ужин, тренировка. Касается денег, питания и зала.</div>'+
@@ -315,7 +325,8 @@ root.addEventListener("click",e=>{
   if(d.x3==="cated"){if(window.openCatEditor)openCatEditor("exp");return}
   if(d.x2==="qr"){try{Android.scanQR()}catch(err){toast("Сканер недоступен")}return}
   if(d.x2==="photo"){openSheet();Fm.photoAsk=true;renderSheet();return}
-  if(d.sub){sub=d.sub;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
+  if(d.ui){M.ui=d.ui;save();renderMoney();toast(d.ui==="old"?"Включён прежний вид":"Включён простой вид");return}
+  if(d.sub){sub=d.sub==="rep"&&M.ui!=="old"?"an":d.sub;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
   if(d.per){per+=+d.per;Wv.item=null;openTx=null;renderMoney();return}
   if(d.cs){shiftCust(+d.cs);renderMoney();return}
   if(d.pp==="open"){ppOpen=!ppOpen;renderMoney();return}
@@ -420,6 +431,7 @@ function addLine(c,s,it){Fm.c=c;Fm.s=s;Fm.lines.push({c,s,n:it.n,f:it.f,u:it.u,a
 const hasVoice=!!(window.Android&&Android.voice);
 function renderSheet(){
   const cats=Fm.t==="inc"?M.cats.inc:M.cats.exp,c=Fm.c&&Fm.t!=="tr"?catOf(Fm.c):null,subc=c&&Fm.s?c.s.find(x=>x.n===Fm.s):null;
+  if(Fm.simple&&!Fm.busy){sSheet();return}
   if(Fm.busy){sheet.innerHTML='<div class="sin"><div class="sheethead"><button type="button" data-x="close">Отмена</button><b>Чек</b><span style="width:60px"></span></div><div class="empty"><div class="spin"></div>'+esc(Fm.busy)+"</div></div>";return}
   let h='<div class="sin"><div class="sheethead"><button type="button" data-x="close">Отмена</button><b>'+(Fm.edit?"Изменить":"Добавить")+'</b><span style="width:60px"></span></div>'+
    '<div class="seg">'+[["exp","Расход"],["inc","Доход"],["tr","Перевод"]].map(([k,n])=>'<button type="button" data-ft="'+k+'" aria-pressed="'+(Fm.t===k)+'">'+n+"</button>").join("")+"</div>";
@@ -710,12 +722,121 @@ window.MoneyAPI={openPrefilled(o){openSheet();setType(o.t);
     if(!o.lines.length&&o.total)Fm.a=String(Math.round(o.total));
     const un=o.lines.findIndex(l=>!l.c);Fm.assign=un>=0?un:null;if(o.lines[0]&&o.lines[0].c)Fm.c=o.lines[0].c;renderSheet()}};
 window.addEventListener("DOMContentLoaded",()=>{if(!$("pageMoney").hidden)renderMoney()});
+// ================= ПРОСТОЙ ВИД =================
+// главная: одна цифра «можно тратить в день», голос, Расход / Доход / Чек, вкладки Записи / Анализ.
+// добавление как в «Финансах»: категория → подкатегория и сумма на своей клавиатуре.
+let sOpen=null,sOv=null;
+function daysLeft(){const t=parse(today()),nx=new Date(t.getFullYear(),t.getMonth()+(t.getDate()>=M.sal.from?1:0),M.sal.from,12);return Math.max(1,Math.round((nx-t)/864e5))}
+function sHead(P){
+  const s=sums(P),last=starts().length-1,ptxt=P.custom?P.label:short(P.a)+" – "+(P.open?"сейчас":short(P.b));
+  const nav=P.custom?'<button type="button" class="per" data-pp="open">'+esc(ptxt)+' ▾</button>':
+    '<div class="sper"><button type="button" class="pa" data-per="-1" aria-label="Раньше"'+(per>0?"":" disabled")+'>‹</button><button type="button" class="per" data-pp="open">'+esc(ptxt)+' ▾</button>'+(P.open?"":'<button type="button" class="pa" data-per="1" aria-label="Позже">›</button>')+"</div>";
+  let main;
+  if(P.open&&!P.custom){const a=allowPerDay(0),w=allowPerDay(0,true),use=M.budget?a:w;
+    main='<div class="smain"><span>Можно тратить в день</span><b>'+(use!=null?fmt(use)+" <small>₸</small>":"—")+"</b>"+
+      '<div class="muted">до зарплаты '+daysLeft()+' дн. · <button type="button" class="lnk" data-sx="acc">на счетах '+fmt(onAcc())+" ₸</button></div></div>"}
+  else main='<div class="smain"><span>'+(P.open?"Потрачено":"Потрачено за период")+'</span><b>'+fmt(s.e)+' <small>₸</small></b><div class="muted">пришло +'+fmt(s.i)+" ₸ · итог "+(s.b>=0?"+":"−")+fmt(Math.abs(s.b))+" ₸</div></div>"+
+    (P.custom?'<button type="button" class="chipbtn back" data-pp="reset">↺ Вернуться к периоду от зарплаты</button>':"");
+  return '<div class="hero"><div class="htop">'+nav+'<button type="button" class="sgear" data-sub="edit">'+svg("gear")+"<span>Настройки</span></button></div>"+main+"</div>"+
+    (ppOpen?picker():"")+
+    (hasVoice?'<button type="button" class="vbar" data-sx="voice">'+svg("mic")+"<span>Скажи, что купил: «кофе 350, вода 300»</span></button>":"")+
+    '<div class="acts"><button type="button" class="bigbtn" data-sx="exp">'+svg("minus")+'Расход</button><button type="button" class="bigbtn ghost" data-sx="inc">'+svg("plus")+"Доход</button>"+
+    ((hasQR()||hasPhoto())?'<button type="button" class="bigbtn ghost chk" data-sx="chk" aria-label="Чек">'+svg("qr")+"</button>":"")+"</div>"+
+    '<div class="seg" role="group"><button type="button" data-sub="rec" aria-pressed="'+(sub==="rec")+'">Записи</button><button type="button" data-sub="an" aria-pressed="'+(sub!=="rec")+'">Анализ</button></div>';
+}
+function sAnalysis(P){
+  const inc=Wv.t==="inc",L=expLines(P,Wv.t),pp=cmpPer(P),Lp=pp?expLines(pp,Wv.t):[],rows=agg(L,"cat"),tot=L.reduce((s,l)=>s+l.a,0),totp=Lp.reduce((s,l)=>s+l.a,0);
+  let h='<div class="seg small" role="group"><button type="button" data-wt="exp" aria-pressed="'+!inc+'">Расходы</button><button type="button" data-wt="inc" aria-pressed="'+inc+'">Доходы</button></div>'+
+    '<div class="card"><span class="label">'+(inc?"Пришло":"Потрачено")+" · "+esc(P.custom?P.label:"с "+short(P.a))+'</span><span class="totbig'+(inc?" pos":"")+'">'+fmt(tot)+" ₸</span>"+
+    (pp&&totp?'<span class="muted">В прошлом периоде '+(pp.cut?"за те же "+pp.cut+" дн. ":"")+fmt(totp)+' ₸ <span class="'+((tot>totp)!==inc?"neg":"pos")+'">'+(tot>totp?"▲ ":"▼ ")+Math.abs(Math.round((tot-totp)/totp*100))+"%</span></span>":'<span class="muted">Сравнение появится, когда будет прошлый период.</span>')+"</div>";
+  if(!rows.length)h+='<div class="empty">'+(inc?"Доходов":"Расходов")+" в этом периоде пока нет.</div>";
+  else{const max=rows[0].a;
+    h+='<div class="msbars">'+rows.map(r=>{const c=catOf(r.c),op=sOpen===r.c;
+      let x='<button type="button" class="rrow" data-sx="open" data-cat="'+esc(r.c)+'" aria-expanded="'+op+'"><span class="no"><span class="sdot" style="background:'+c.c+'"></span></span><span class="nm"><b>'+esc(c.n)+'</b><span class="mbar2"><i style="width:'+(r.a/max*100)+"%;background:"+c.c+'"></i></span></span><span class="am">'+fmt(r.a)+"<small>"+Math.round(r.a/tot*100)+"%</small></span></button>";
+      if(op)x+='<div class="ssubs">'+agg(L.filter(l=>l.c===r.c),"sub").map(sr=>'<button type="button" data-sx="sub" data-cat="'+esc(r.c)+'" data-s="'+esc(sr.s)+'"><span>'+esc(sr.s)+"</span><span>"+fmt(sr.a)+" ›</span></button>").join("")+"</div>";
+      return x}).join("")+"</div>"}
+  if(!inc&&M.budget&&P.open&&!P.custom){const s=sums(P),left=M.budget-s.e,dl=daysLeft();
+    h+='<div class="card"><span class="label">План на месяц · '+fmt(M.budget)+' ₸</span><div class="track"><i style="width:'+Math.min(100,s.e/M.budget*100)+'%"></i></div>'+
+      '<div class="kv"><span>Уже потратил</span><b>'+fmt(s.e)+" ₸</b></div>"+
+      '<div class="kv"><span>Ещё можно до зарплаты</span><b class="'+(left>=0?"":"neg")+'">'+fmt(left)+" ₸</b></div>"+
+      (left>0?'<div class="daily"><span>'+fmt(left)+" ÷ "+dl+' дн.</span><b>≈ '+fmt(left/dl)+" ₸ в день</b></div>":"")+
+      '<div class="muted" style="font-size:13px">Это цифра сверху главного экрана. Сумму плана меняешь в настройках.</div></div>'}
+  if(inc){const T=L.filter(l=>l.c==="tips");if(T.length){const days={};T.forEach(l=>days[l.d]=(days[l.d]||0)+l.a);const dk=Object.keys(days),tt=T.reduce((s,l)=>s+l.a,0),best=dk.slice().sort((a,b)=>days[b]-days[a])[0],card=T.filter(l=>/карт|kaspi|перевод/i.test(l.n||"")).reduce((s,l)=>s+l.a,0);
+    h+='<div class="card"><span class="label">Чаевые</span><div class="kv"><span>Смен с чаевыми</span><b>'+dk.length+'</b></div><div class="kv"><span>В среднем за смену</span><b>'+fmt(tt/dk.length)+' ₸</b></div><div class="kv"><span>Лучшая смена</span><b>'+fmt(days[best])+" ₸ · "+short(best)+'</b></div><div class="kv"><span>На карту / наличными</span><b>'+fmt(card)+" / "+fmt(tt-card)+"</b></div></div>"}}
+  return h+accCard()+loansCard();
+}
+function sOverlay(){
+  if(sOv==="chk")return '<div class="sov" data-sx="ovx"><div class="sin2"><b class="sovh">Добавить чек</b><div class="wrow">'+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-sx="qr">'+svg("qr")+"QR-код</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-sx="cam">'+svg("camera")+"Сфотографировать</button>":"")+"</div>"+
+    (hasPhoto()?'<button type="button" class="bigbtn ghost" data-sx="gal">Выбрать фото из галереи</button>':"")+'<div class="muted" style="font-size:13px">Скриншот или заметку можно отправить в «Зал» через «Поделиться» из любого приложения.</div></div></div>';
+  if(sOv==="acc")return '<div class="sov" data-sx="ovx"><div class="sin2"><b class="sovh">На счетах '+fmt(onAcc())+' ₸</b>'+accCard()+
+    (M.budget?'<div class="daily" style="flex-direction:column;align-items:stretch;gap:4px"><div class="kv"><span>По плану в день</span><b>'+(allowPerDay(0)!=null?fmt(allowPerDay(0))+" ₸":"—")+'</b></div><div class="kv"><span>Всеми деньгами в день</span><b>'+(allowPerDay(0,true)!=null?fmt(allowPerDay(0,true))+" ₸":"—")+"</b></div></div>":"")+
+    '<button type="button" class="bigbtn ghost" data-sx="ovx2">Закрыть</button></div></div>';
+  return "";
+}
+root.addEventListener("click",e=>{const b=e.target.closest("[data-sx]");if(!b)return;const k=b.dataset.sx;
+  if(k==="ovx"){if(e.target===b){sOv=null;renderMoney()}return}
+  e.stopPropagation();
+  if(k==="ovx2"){sOv=null;renderMoney();return}
+  if(k==="voice"){try{Android.voice()}catch(err){toast("Голосовой ввод недоступен")}return}
+  if(k==="exp"||k==="inc"){openSheet();setType(k);Fm.c=null;Fm.s=null;Fm.simple=true;renderSheet();return}
+  if(k==="chk"||k==="acc"){sOv=k;renderMoney();return}
+  if(k==="qr"){sOv=null;renderMoney();try{Android.scanQR()}catch(err){toast("Сканер недоступен")}return}
+  if(k==="cam"||k==="gal"){sOv=null;renderMoney();try{Android.photo(k)}catch(err){toast("Камера недоступна")}return}
+  if(k==="open"){sOpen=sOpen===b.dataset.cat?null:b.dataset.cat;renderMoney();return}
+  if(k==="sub"){sub="where";Wv.fc=b.dataset.cat;Wv.fs=b.dataset.s;Wv.item=null;renderMoney();window.scrollTo(0,0);return}
+},true);
+function autoAcc(n){if(/налич/i.test(n)){const a=M.acc.find(x=>x.i==="cash"||/налич/i.test(x.n));if(a)Fm.acc=a.id}
+  if(/карт/i.test(n)){const a=M.acc.find(x=>x.i==="card"||/kaspi|карт/i.test(x.n));if(a)Fm.acc=a.id}}
+function sSheet(){
+  const inc=Fm.t==="inc",cats=inc?M.cats.inc:M.cats.exp;
+  if(!Fm.c){
+    sheet.innerHTML='<div class="sin"><div class="sheethead"><button type="button" data-x="close">Отмена</button><b>Добавить</b><span style="width:60px"></span></div>'+
+      '<div class="seg"><button type="button" data-sk="t" data-v="exp" aria-pressed="'+!inc+'">Расход</button><button type="button" data-sk="t" data-v="inc" aria-pressed="'+inc+'">Доход</button></div>'+
+      '<div class="grid">'+cats.map(c=>'<button type="button" class="cat" data-sc="'+c.id+'"><span class="ic" style="background:'+c.c+';color:#0c1014;border-color:transparent">'+svg(c.i)+"</span>"+esc(c.n)+"</button>").join("")+"</div>"+
+      '<div class="wrow" style="grid-template-columns:repeat('+(1+(hasVoice?1:0)+(hasQR()?1:0)+(hasPhoto()?1:0)-1||1)+',1fr)">'+(hasVoice?'<button type="button" class="bigbtn ghost qrbig" data-x="mic">'+svg("mic")+"Голосом</button>":"")+(hasQR()?'<button type="button" class="bigbtn ghost qrbig" data-x="qr">'+svg("qr")+"QR</button>":"")+(hasPhoto()?'<button type="button" class="bigbtn ghost qrbig" data-sk="photo">'+svg("camera")+"Фото</button>":"")+"</div>"+
+      '<button type="button" class="more" data-sk="tr">Перевод между своими счетами</button></div>';
+    return}
+  const c=catOf(Fm.c),acc=accOf(Fm.acc),dtxt=Fm.d===today()?"Сегодня":Fm.d===addDays(today(),-1)?"Вчера":short(Fm.d);
+  sheet.innerHTML='<div class="sin"><div class="sheethead"><button type="button" data-sk="back">‹ Назад</button><b>'+esc(c.n)+'</b><span style="width:60px"></span></div>'+
+    (c.s.length>1?'<div class="chips">'+c.s.map(x=>'<button type="button" data-ss="'+esc(x.n)+'" aria-pressed="'+(Fm.s===x.n)+'">'+esc(x.n)+"</button>").join("")+"</div>":"")+
+    (()=>{const sv=Fm.s&&c.s.find(x=>x.n===Fm.s);return sv&&sv.it.length>1?'<div class="chips items2">'+sv.it.map(x=>'<button type="button" data-si="'+esc(x.n)+'" aria-pressed="'+(Fm.si===x.n)+'">'+esc(x.n)+"</button>").join("")+"</div>":""})()+
+    '<div class="kshow"><b>'+(Fm.a?fmt(+Fm.a):"0")+"</b><span>₸</span></div>"+
+    '<div class="kmeta"><button type="button" data-sk="acc">'+esc(acc.n)+' ▾</button><label class="kdate">'+esc(dtxt)+' ▾<input type="date" id="sdate" value="'+Fm.d+'" max="'+today()+'"></label><button type="button" data-sk="note">✎ '+(Fm.note?esc(Fm.note.slice(0,14)):"Комментарий")+"</button></div>"+
+    (Fm.noteOpen?'<input class="inp" id="snote" placeholder="Где или комментарий" value="'+esc(Fm.note)+'">':"")+
+    '<div class="keys">'+["1","2","3","4","5","6","7","8","9","000","0","⌫"].map(k=>'<button type="button" data-kk="'+k+'">'+(k==="⌫"?"⌫":k)+"</button>").join("")+"</div>"+
+    '<button type="button" class="save" data-sk="save"'+(+Fm.a>0?"":" disabled")+">Записать"+(+Fm.a>0?" "+fmt(+Fm.a)+" ₸":"")+"</button>"+
+    '<button type="button" class="more" data-sk="full">Подробнее: несколько позиций, вес, питание</button></div>';
+}
+sheet.addEventListener("click",e=>{if(!Fm||!Fm.simple)return;const b=e.target.closest("[data-sk],[data-sc],[data-ss],[data-si],[data-kk]");if(!b)return;e.stopImmediatePropagation();
+  const d=b.dataset,nt=$("snote");if(nt)Fm.note=nt.value;
+  if(d.sk==="t"){setType(d.v);Fm.c=null;Fm.s=null;sSheet();return}
+  if(d.sc){Fm.c=d.sc;const c=catOf(d.sc);Fm.s=c.s.length===1?c.s[0].n:null;Fm.si=null;Fm.a="";sSheet();return}
+  if(d.si!=null){Fm.si=Fm.si===d.si?null:d.si;autoAcc(d.si);sSheet();return}
+  if(d.ss!=null){Fm.s=d.ss;Fm.si=null;autoAcc(d.ss);sSheet();return
+    if(/налич/i.test(d.ss)){const a=M.acc.find(x=>x.i==="cash"||/налич/i.test(x.n));if(a)Fm.acc=a.id}
+    if(/карт/i.test(d.ss)){const a=M.acc.find(x=>x.i==="card"||/kaspi|карт/i.test(x.n));if(a)Fm.acc=a.id}
+    sSheet();return}
+  if(d.kk){let a=String(Fm.a||"");if(d.kk==="⌫")a=a.slice(0,-1);else if(a.length<9)a=(a+d.kk).replace(/^0+/,"");Fm.a=a;sSheet();return}
+  if(d.sk==="back"){Fm.c=null;Fm.s=null;Fm.a="";sSheet();return}
+  if(d.sk==="acc"){const i=M.acc.findIndex(x=>x.id===Fm.acc);Fm.acc=M.acc[(i+1)%M.acc.length].id;sSheet();return}
+  if(d.sk==="note"){Fm.noteOpen=!Fm.noteOpen;sSheet();if(Fm.noteOpen){const n=$("snote");if(n)n.focus()}return}
+  if(d.sk==="photo"){closeSheet();sOv="chk";renderMoney();return}
+  if(d.sk==="tr"){Fm.simple=false;setType("tr");renderSheet();return}
+  if(d.sk==="full"){Fm.simple=false;renderSheet();return}
+  if(d.sk==="save"){if(!(+Fm.a>0))return;const c=catOf(Fm.c);if(!Fm.s)Fm.s=c.s[0]?c.s[0].n:null;
+    const sv=c.s.find(x=>x.n===Fm.s),it=sv&&(Fm.si?sv.it.find(x=>x.n===Fm.si):sv.it.length===1?sv.it[0]:null);
+    Fm.lines=[{c:Fm.c,s:Fm.s,n:it?it.n:Fm.s,a:String(Fm.a),q:""}];Fm.simple=false;saveSheet();return}
+},true);
+sheet.addEventListener("change",e=>{if(e.target.id==="sdate"&&e.target.value){Fm.d=e.target.value;sSheet()}});
+
 // кнопка «Назад» телефона: сначала закрываем открытое внутри «Денег»
 MoneyAPI.back=function(){
-  if(!sheet.hidden){closeSheet();return true}
+  if(!sheet.hidden){if(Fm&&Fm.simple&&Fm.c){Fm.c=null;Fm.s=null;Fm.a="";sSheet();return true}closeSheet();return true}
+  if(sOv){sOv=null;renderMoney();return true}
   if(ppOpen){ppOpen=false;renderMoney();return true}
   if(sub==="edit"||sub==="loan"){sub="rep";renderMoney();return true}
   if(sub==="where"&&(Wv.item||Wv.fc||Wv.fs||Wv.q)){Wv.item=null;if(Wv.fs)Wv.fs=null;else Wv.fc=null;Wv.q="";renderMoney();return true}
+  if(sub==="where"&&M.ui!=="old"){sub="an";renderMoney();return true}
   if(sub!=="rec"){sub="rec";renderMoney();return true}
   if(openTx!=null){openTx=null;renderMoney();return true}
   return false};
