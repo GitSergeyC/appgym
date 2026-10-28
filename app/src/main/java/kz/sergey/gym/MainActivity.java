@@ -95,6 +95,15 @@ public class MainActivity extends Activity {
             int c = px[i], l = (((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114) / 1000;
             lum[i] = l; hist[l]++;
         }
+        // тёмная тема (скриншот): светлый текст на чёрном — инвертируем, дальше как обычный чек
+        long tot = 0; for (int l : lum) tot += l;
+        if (tot / Math.max(1, lum.length) < 100) {
+            Bitmap inv = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+            ColorMatrix im = new ColorMatrix(new float[]{-1,0,0,0,255, 0,-1,0,0,255, 0,0,-1,0,255, 0,0,0,1,0});
+            Paint ip = new Paint(); ip.setColorFilter(new ColorMatrixColorFilter(im));
+            new Canvas(inv).drawBitmap(b, 0, 0, ip);
+            return binarize(inv);
+        }
         int acc = 0, p90 = 255;
         for (int v = 0; v < 256; v++) { acc += hist[v]; if (acc >= px.length * 0.9) { p90 = v; break; } }
         int thr = (int) (p90 * 0.85);
